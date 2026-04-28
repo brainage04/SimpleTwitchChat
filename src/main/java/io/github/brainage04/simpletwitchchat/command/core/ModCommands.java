@@ -5,8 +5,8 @@ import io.github.brainage04.simpletwitchchat.command.TwitchChatCommand;
 import io.github.brainage04.simpletwitchchat.command.admin.RegenerateAuthUrlCommand;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 
-import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.argument;
-import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
+import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.argument;
+import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.literal;
 
 public class ModCommands {
     public static void initialize() {

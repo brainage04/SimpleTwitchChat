@@ -12,9 +12,10 @@ import com.github.twitch4j.common.util.ThreadUtils;
 import io.github.brainage04.simpletwitchchat.util.feedback.FeedbackUtils;
 import io.github.brainage04.simpletwitchchat.util.feedback.MessageType;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.ChatFormatting;
 
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
@@ -60,9 +61,9 @@ public class Bot {
     }
 
     private static void appendTwitchMessage(String username, String message) {
-        MinecraftClient.getInstance().inGameHud.getChatHud().addMessage(
-                Text.empty()
-                        .append(Text.literal("[%s] ".formatted(username)).formatted(Formatting.DARK_PURPLE))
+        appendClientMessage(
+                Component.empty()
+                        .append(Component.literal("[%s] ".formatted(username)).withStyle(ChatFormatting.DARK_PURPLE))
                         .append(message)
         );
     }
@@ -84,5 +85,28 @@ public class Bot {
 
         client.getChat().sendMessage(username, message);
         appendTwitchMessage(username, message);
+    }
+
+    public void sendChatMessage(String message) {
+        if (username == null || username.isEmpty()) {
+            appendClientMessage(Component.literal(
+                    "You have not authorised the SimpleTwitchChat bot! Please do so before trying to send messages to Twitch chat."
+            ).withStyle(ChatFormatting.RED));
+
+            return;
+        }
+
+        if (!client.getChat().isChannelJoined(username)) {
+            client.getChat().joinChannel(username);
+        }
+
+        client.getChat().sendMessage(username, message);
+        appendTwitchMessage(username, message);
+    }
+
+    private static void appendClientMessage(MutableComponent message) {
+        if (Minecraft.getInstance().player != null) {
+            Minecraft.getInstance().player.sendSystemMessage(message);
+        }
     }
 }
