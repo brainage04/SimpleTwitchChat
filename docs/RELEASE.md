@@ -8,9 +8,6 @@
 6. For longer release notes, put them in a file and run `git tag -a v1.0.1 -F RELEASE_NOTES.md`.
 7. Push the tag with `git push origin v1.0.1`.
 
-The release workflow reads the annotated tag message and uses it as the GitHub release body.
-If the tag has no annotation text, GitHub auto-generated release notes are used as a fallback.
-GitHub Actions checks out tag pushes in a way that can obscure annotated tag contents, so the workflow fetches the remote tag object before reading the notes.
+The FabricModdingConventions reusable release workflow prepares the exact release artifact and resolves the release notes from the annotated tag, falling back to generated GitHub release notes when necessary.
 
-If `MODRINTH_TOKEN` is configured, the same `release.yml` workflow runs a second job after the GitHub release is created and publishes the same build to Modrinth.
-That job reuses the same tag notes as the Modrinth version changelog.
+If `MODRINTH_TOKEN` and `MODRINTH_PROJECT_ID` are configured, the reusable workflow publishes that prepared artifact and its release notes to the configured Modrinth project.

@@ -19,7 +19,7 @@ public class SimpleTwitchChat implements ClientModInitializer {
 
 		ModCommands.initialize();
 		ModWorldEvents.initialize();
-		InstalledChatbot.intitialize();
+		InstalledChatbot.initialize();
 
 		LOGGER.info("{} initialized.", MOD_NAME);
 	}

@@ -51,10 +51,11 @@ public class InstalledChatbot {
                 .append(" or with \"/regenerateauthurl\".");
     }
 
-    public static void intitialize() {
-        // https://gist.github.com/iProdigy/76bc18a8e601243aa021f31fb2a4d121
+    public static void initialize() {
         bot = new Bot();
+    }
 
+    private static void requestAuthorization() {
         DeviceAuthorization req = getBot().getController().startOAuth2DeviceAuthorizationGrantType(
                 getBot().getIdentityProvider(),
                 Arrays.asList(TwitchScopes.CHAT_READ, TwitchScopes.CHAT_EDIT),
@@ -78,12 +79,11 @@ public class InstalledChatbot {
         );
 
         activationUri = URI.create(req.getCompleteUri());
-
         SimpleTwitchChat.LOGGER.info("The user should now visit: {}", getActivationUri());
     }
 
     public static void regenerate() {
-        intitialize();
+        requestAuthorization();
 
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) return;

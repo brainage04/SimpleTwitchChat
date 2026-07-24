@@ -7,11 +7,14 @@ import io.github.brainage04.simpletwitchchat.util.feedback.MessageType;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 
 public class TwitchChatCommand {
+    public static boolean toggleTwitchChat() {
+        SimpleTwitchChatState.twitchChatToggled = !SimpleTwitchChatState.twitchChatToggled;
+        return SimpleTwitchChatState.twitchChatToggled;
+    }
+
     @SuppressWarnings("SameReturnValue")
     public static int execute(FabricClientCommandSource source) {
-        SimpleTwitchChatState.twitchChatToggled = !SimpleTwitchChatState.twitchChatToggled;
-
-        String message = SimpleTwitchChatState.twitchChatToggled
+        String message = toggleTwitchChat()
                 ? "Twitch"
                 : "Minecraft";
 
