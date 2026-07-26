@@ -2,6 +2,8 @@ plugins {
 	id 'io.github.brainage04.fabric-mod-conventions' version "${fabricmoddingconventions_version}"
 	id 'io.github.brainage04.workspace-dependencies' version "${fabricmoddingconventions_version}"
 	id 'io.github.brainage04.mod-publishing' version "${fabricmoddingconventions_version}"
+	id 'io.github.brainage04.client-gametest-recorder' version "${fabricmoddingconventions_version}"
+	id 'io.github.brainage04.production-gametests' version "${fabricmoddingconventions_version}"
 }
 
 repositories {
@@ -32,5 +34,20 @@ dependencies {
 		include("${artifact.moduleVersion.id.group}:${artifact.name}:${artifact.moduleVersion.id.version}") {
 			transitive = false
 		}
+	}
+}
+
+productionGameTests {
+	includeClient.set(true)
+	runtimeLibraryDependencies.set(
+			configurations.twitchLibraries.resolvedConfiguration.resolvedArtifacts.collect { artifact ->
+				"${artifact.moduleVersion.id.group}:${artifact.name}:${artifact.moduleVersion.id.version}"
+			}
+	)
+}
+
+pluginManager.withPlugin("io.github.brainage04.client-gametest-recorder") {
+	clientGameTestRecorder {
+		guiScale.set("3")
 	}
 }
