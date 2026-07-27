@@ -1,0 +1,31 @@
+{
+	"schemaVersion": 1,
+	"id": "${mod_id}",
+	"version": "${mod_version}",
+	"name": "${mod_name}",
+	"description": "A mod that integrates Twitch chat with Minecraft chat.",
+	"authors": [
+		"brainage04"
+	],
+	"contact": {
+		"homepage": "https://github.com/brainage04/SimpleTwitchChat",
+		"sources": "https://github.com/brainage04/SimpleTwitchChat"
+	},
+	"license": "MIT",
+	"icon": "assets/simpletwitchchat/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"io.github.brainage04.simpletwitchchat.fabric.SimpleTwitchChatFabric"
+		]
+	},
+	"mixins": [
+		"simpletwitchchat.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=${loader_version}",
+		"minecraft": "~${minecraft_version}",
+		"java": ">=${java_version}",
+		"fabric-api": "*"
+	}
+}

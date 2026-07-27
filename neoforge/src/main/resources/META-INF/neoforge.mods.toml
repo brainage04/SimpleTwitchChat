@@ -1,0 +1,27 @@
+modLoader="javafml"
+loaderVersion="[11,)"
+license="MIT"
+
+[[mods]]
+modId="simpletwitchchat"
+version="${version}"
+displayName="SimpleTwitchChat"
+description='''A mod that integrates Twitch chat with Minecraft chat.'''
+logoFile="assets/simpletwitchchat/icon.png"
+
+[[mixins]]
+config="simpletwitchchat.mixins.json"
+
+[[dependencies.simpletwitchchat]]
+modId="neoforge"
+type="required"
+versionRange="[${neoforge_version},)"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.simpletwitchchat]]
+modId="minecraft"
+type="required"
+versionRange="[${minecraft_version}]"
+ordering="NONE"
+side="CLIENT"
