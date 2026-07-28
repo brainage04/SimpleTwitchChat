@@ -4,7 +4,7 @@ import io.github.brainage04.fabricmoddingconventions.ClientGameTestRecorder;
 import io.github.brainage04.fabricmoddingconventions.ClientGameTestServers;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
-import net.fabricmc.fabric.api.client.gametest.v1.context.TestDedicatedServerContext;
+
 import net.minecraft.client.gui.screens.ChatScreen;
 
 import java.util.Properties;
@@ -15,39 +15,36 @@ public final class SimpleTwitchChatClientGameTest implements FabricClientGameTes
     public void runTest(ClientGameTestContext context) {
         Properties serverProperties = ClientGameTestServers.flatServerProperties();
 
-        try (TestDedicatedServerContext server = context.worldBuilder().createServer(serverProperties)) {
-            ClientGameTestServers.connectToDedicatedServer(context, server, "SimpleTwitchChat command recording GameTest");
-            try {
-                ClientGameTestServers.assertClientWorldAndPlayerAvailable(context);
-                context.runOnClient(client -> SimpleTwitchChatState.twitchChatToggled = false);
-                context.waitTicks(20);
-
-                ClientGameTestRecorder.startRecording(context);
-                toggleAndShowFeedback(
-                        context,
-                        "chat.twitch-default",
-                        "Twitch is the default chat",
-                        "The /tc command confirms that new chat messages use Twitch by default.",
-                        true
-                );
-                context.waitTicks(50);
-
-                toggleAndShowFeedback(
-                        context,
-                        "chat.minecraft-default",
-                        "Minecraft is the default chat",
-                        "The same /tc command confirms that new chat messages return to Minecraft by default.",
-                        false
-                );
-                context.waitTicks(50);
-            } finally {
-                context.runOnClient(client -> {
-                    SimpleTwitchChatState.twitchChatToggled = false;
-                    client.setScreenAndShow(null);
-                });
-                ClientGameTestServers.disconnectFromDedicatedServer(context);
-            }
-        }
+        ClientGameTestServers.withDedicatedServer(context, serverProperties, "SimpleTwitchChat command recording GameTest", server -> { try {
+            ClientGameTestServers.assertClientWorldAndPlayerAvailable(context);
+            context.runOnClient(client -> SimpleTwitchChatState.twitchChatToggled = false);
+            context.waitTicks(20);
+        
+            ClientGameTestRecorder.startRecording(context);
+            toggleAndShowFeedback(
+                    context,
+                    "chat.twitch-default",
+                    "Twitch is the default chat",
+                    "The /tc command confirms that new chat messages use Twitch by default.",
+                    true
+            );
+            context.waitTicks(50);
+        
+            toggleAndShowFeedback(
+                    context,
+                    "chat.minecraft-default",
+                    "Minecraft is the default chat",
+                    "The same /tc command confirms that new chat messages return to Minecraft by default.",
+                    false
+            );
+            context.waitTicks(50);
+        } finally {
+            context.runOnClient(client -> {
+                SimpleTwitchChatState.twitchChatToggled = false;
+                client.setScreenAndShow(null);
+            });
+            ;
+        } });
     }
 
     private static void toggleAndShowFeedback(
