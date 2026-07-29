@@ -2,10 +2,6 @@ plugins {
 	id 'dev.architectury.loom-no-remap'
 	id 'dev.architectury.loom'
 }
-sourceSets {
-	main { java.srcDirs = [rootProject.file('common/src/main/java')]; resources.srcDirs = [rootProject.file('common/src/main/resources')] }
-	test { java.srcDir rootProject.file('common/src/test/java') }
-}
 configurations {
 	twitchLibraries { canBeResolved = true; canBeConsumed = false; exclude group: 'org.slf4j', module: 'slf4j-api'; exclude group: 'commons-io', module: 'commons-io'; exclude group: 'org.apache.commons', module: 'commons-lang3' }
 }
