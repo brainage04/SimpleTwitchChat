@@ -1,0 +1,92 @@
+{
+  "entries": [
+    {
+      "project": "BrainageMinigames",
+      "label": "Supplied skin face (both layers) doubled to 16x16 and placed in FRONT of everything, centred; diamond sword and the 90-degrees-CCW iron sword behind it.",
+      "path": "pixel2/brainage-minigames.png",
+      "method": "Pillow deterministic native-pixel composition",
+      "source": "Supplied skin (both layers, head front) + Official Java 1.21.4 client.jar textures; see provenance.json",
+      "notes": "Supplied skin face (both layers) doubled to 16x16 and placed in FRONT of everything, centred; diamond sword and the 90-degrees-CCW iron sword behind it."
+    },
+    {
+      "project": "AcceleratedDamage",
+      "label": "Real Speed status-effect icon DOUBLED (36x36) as the background; HUD hardcore half heart at 2x moved 1 px down and 3 px left. HUD relative sizes preserved exactly (effect icon 18x18, heart 9x9, both at 2x).",
+      "path": "pixel2/accelerated-damage-down1-left3.png",
+      "method": "Pillow deterministic native-pixel composition",
+      "source": "Official Java 1.21.4 client.jar: mob_effect/speed.png, gui/sprites/hud/heart/container_hardcore.png, gui/sprites/hud/heart/hardcore_half.png",
+      "notes": "Real Speed status-effect icon DOUBLED (36x36) as the background; HUD hardcore half heart at 2x moved 1 px down and 3 px left. HUD relative sizes preserved exactly (effect icon 18x18, heart 9x9, both at 2x)."
+    },
+    {
+      "project": "AcceleratedDamage",
+      "label": "Real Speed status-effect icon DOUBLED (36x36) as the background; HUD hardcore half heart at 2x moved 1 px down and 5 px left. HUD relative sizes preserved exactly (effect icon 18x18, heart 9x9, both at 2x).",
+      "path": "pixel2/accelerated-damage-down1-left5.png",
+      "method": "Pillow deterministic native-pixel composition",
+      "source": "Official Java 1.21.4 client.jar: mob_effect/speed.png, gui/sprites/hud/heart/container_hardcore.png, gui/sprites/hud/heart/hardcore_half.png",
+      "notes": "Real Speed status-effect icon DOUBLED (36x36) as the background; HUD hardcore half heart at 2x moved 1 px down and 5 px left. HUD relative sizes preserved exactly (effect icon 18x18, heart 9x9, both at 2x)."
+    },
+    {
+      "project": "AcceleratedDamage",
+      "label": "Real Speed status-effect icon DOUBLED (36x36) as the background; HUD hardcore half heart at 2x moved 1 px down and 7 px left. HUD relative sizes preserved exactly (effect icon 18x18, heart 9x9, both at 2x).",
+      "path": "pixel2/accelerated-damage-down1-left7.png",
+      "method": "Pillow deterministic native-pixel composition",
+      "source": "Official Java 1.21.4 client.jar: mob_effect/speed.png, gui/sprites/hud/heart/container_hardcore.png, gui/sprites/hud/heart/hardcore_half.png",
+      "notes": "Real Speed status-effect icon DOUBLED (36x36) as the background; HUD hardcore half heart at 2x moved 1 px down and 7 px left. HUD relative sizes preserved exactly (effect icon 18x18, heart 9x9, both at 2x)."
+    },
+    {
+      "project": "AcceleratedDamage",
+      "label": "Real Speed status-effect icon DOUBLED (36x36) as the background; HUD hardcore half heart at 2x moved 3 px down and 3 px left. HUD relative sizes preserved exactly (effect icon 18x18, heart 9x9, both at 2x).",
+      "path": "pixel2/accelerated-damage-down3-left3.png",
+      "method": "Pillow deterministic native-pixel composition",
+      "source": "Official Java 1.21.4 client.jar: mob_effect/speed.png, gui/sprites/hud/heart/container_hardcore.png, gui/sprites/hud/heart/hardcore_half.png",
+      "notes": "Real Speed status-effect icon DOUBLED (36x36) as the background; HUD hardcore half heart at 2x moved 3 px down and 3 px left. HUD relative sizes preserved exactly (effect icon 18x18, heart 9x9, both at 2x)."
+    },
+    {
+      "project": "AcceleratedDamage",
+      "label": "Real Speed status-effect icon DOUBLED (36x36) as the background; HUD hardcore half heart at 2x moved 3 px down and 5 px left. HUD relative sizes preserved exactly (effect icon 18x18, heart 9x9, both at 2x).",
+      "path": "pixel2/accelerated-damage-down3-left5.png",
+      "method": "Pillow deterministic native-pixel composition",
+      "source": "Official Java 1.21.4 client.jar: mob_effect/speed.png, gui/sprites/hud/heart/container_hardcore.png, gui/sprites/hud/heart/hardcore_half.png",
+      "notes": "Real Speed status-effect icon DOUBLED (36x36) as the background; HUD hardcore half heart at 2x moved 3 px down and 5 px left. HUD relative sizes preserved exactly (effect icon 18x18, heart 9x9, both at 2x)."
+    },
+    {
+      "project": "AcceleratedDamage",
+      "label": "Real Speed status-effect icon DOUBLED (36x36) as the background; HUD hardcore half heart at 2x moved 3 px down and 7 px left. HUD relative sizes preserved exactly (effect icon 18x18, heart 9x9, both at 2x).",
+      "path": "pixel2/accelerated-damage-down3-left7.png",
+      "method": "Pillow deterministic native-pixel composition",
+      "source": "Official Java 1.21.4 client.jar: mob_effect/speed.png, gui/sprites/hud/heart/container_hardcore.png, gui/sprites/hud/heart/hardcore_half.png",
+      "notes": "Real Speed status-effect icon DOUBLED (36x36) as the background; HUD hardcore half heart at 2x moved 3 px down and 7 px left. HUD relative sizes preserved exactly (effect icon 18x18, heart 9x9, both at 2x)."
+    },
+    {
+      "project": "GetEnchantInfo",
+      "label": "Enchanted book doubled to 32x32; native 16x16 information symbol centred in front, with the eight marked pixels filled blue ((4,0),(11,0),(0,4),(15,4),(0,11),(15,11),(4,15),(11,15)) so the disc reaches its full symmetric extent.",
+      "path": "pixel2/get-enchant-info.png",
+      "method": "Pillow deterministic native-pixel composition",
+      "source": "Official Java 1.21.4 client.jar textures; see provenance.json",
+      "notes": "Enchanted book doubled to 32x32; native 16x16 information symbol centred in front, with the eight marked pixels filled blue ((4,0),(11,0),(0,4),(15,4),(0,11),(15,11),(4,15),(11,15)) so the disc reaches its full symmetric extent."
+    },
+    {
+      "project": "SimpleTwitchChat",
+      "label": "Native 16x16 speech bubble: white fill, purple border, three black dots vertically centred in the interior, and a solid purple right-angle isosceles triangle tail (rows 11-14, cols 1-4) that stops one pixel above the bottom edge like the other three margins.",
+      "path": "pixel2/simple-twitch-chat.png",
+      "method": "Pillow deterministic native-pixel composition",
+      "source": "Original deterministic pixel symbol",
+      "notes": "Native 16x16 speech bubble: white fill, purple border, three black dots vertically centred in the interior, and a solid purple right-angle isosceles triangle tail (rows 11-14, cols 1-4) that stops one pixel above the bottom edge like the other three margins."
+    },
+    {
+      "project": "TwitchPlaysMinecraft",
+      "label": "SimpleTwitchChat bubble at its native 16x scale rendered 64x (1024x1024, not shrunk): purple isosceles play triangle at 4x resolution inside on the left, 4x-resolution 384x414 isometric grass block inside on the right at the true isometric attitude (35.264 deg, top face 1:sqrt(3)), top face tinted with the plains grass colour (#91BD59). Both elements are centred on the centre of the SPEECH BUBBLE'S INTERIOR (x 128..895, y 128..605, centre 511.5,366.5) rather than the image centre: triangle 232..423 (y 206..525), block 472..791 (y 194..538, 320x345 keeping the 4x aspect), equal 104 px interior side margins and equal 66/67 px interior top/bottom margins around the block. The block canvas is sized to the cube's full projected height so no corner is clipped.",
+      "path": "pixel2/twitch-plays-minecraft.png",
+      "method": "Pillow deterministic native-pixel composition",
+      "source": "Official Java 1.21.4 client.jar textures; see provenance.json",
+      "notes": "SimpleTwitchChat bubble at its native 16x scale rendered 64x (1024x1024, not shrunk): purple isosceles play triangle at 4x resolution inside on the left, 4x-resolution 384x414 isometric grass block inside on the right at the true isometric attitude (35.264 deg, top face 1:sqrt(3)), top face tinted with the plains grass colour (#91BD59). Both elements are centred on the centre of the SPEECH BUBBLE'S INTERIOR (x 128..895, y 128..605, centre 511.5,366.5) rather than the image centre: triangle 232..423 (y 206..525), block 472..791 (y 194..538, 320x345 keeping the 4x aspect), equal 104 px interior side margins and equal 66/67 px interior top/bottom margins around the block. The block canvas is sized to the cube's full projected height so no corner is clipped."
+    },
+    {
+      "project": "BrainageLib",
+      "label": "BrainageLib \u2014 existing NMSR renderer, default settings (previous output)",
+      "path": "pixel2/brainage-lib-default.png",
+      "method": "Existing NMSR renderer, self-hosted unmodified; multipart supplied skin, both layers",
+      "source": "https://github.com/NickAcPT/nmsr-rs commit bf87e8275005601c12768a9d74c016d0337d58b0, /headiso, rendering={\"sample_count\": null, \"use_smaa\": null}; output 512x512 sha256 2c8f4b74f8cc6d96",
+      "notes": "Same service and skin with no [rendering] overrides \u2014 this is the file reviewed previously, kept for comparison. It contains two 1-pixel protrusions at the left and right silhouette extremes (y=381)."
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "project": "SimpleTwitchChat",
+  "icon": "pixel2/simple-twitch-chat.png",
+  "generator": "pixel2/render.py (round3/pixel2/render.py)",
+  "derived_from": "round3/pixel2/manifest.json",
+  "note": "Extract of the round-3 pixel2 manifest for this icon only. round3/pixel2/manifest.json also covers other mods and is not reproduced here.",
+  "entries": [
+    {
+      "project": "SimpleTwitchChat",
+      "label": "Native 16x16 speech bubble: white fill, purple border, three black dots vertically centred in the interior, and a solid purple right-angle isosceles triangle tail (rows 11-14, cols 1-4) that stops one pixel above the bottom edge like the other three margins.",
+      "path": "pixel2/simple-twitch-chat.png",
+      "method": "Pillow deterministic native-pixel composition",
+      "source": "Original deterministic pixel symbol",
+      "notes": "Native 16x16 speech bubble: white fill, purple border, three black dots vertically centred in the interior, and a solid purple right-angle isosceles triangle tail (rows 11-14, cols 1-4) that stops one pixel above the bottom edge like the other three margins."
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "derived_from": [
+    "round3/pixel/provenance.json",
+    "round3/pixel2/render.py (source docstring)"
+  ],
+  "jar_note": "Files marked with a member path were extracted byte-for-byte from the official Java 1.21.4 client jar; every shipped source file hash above was re-verified against the corresponding jar member (round3/pixel2/jar/client-1.21.4.jar, sha256 c17c450c6e72cc51297daa57ce38f800aa01cf022b743daa21a0512d326d894e). supplied-skin.png is the owner-supplied skin file, not a Mojang asset. The jar itself is not copied here (28 MB); its recorded download URL is in the \"jar\" field of each row.",
+  "sources": [
+    {
+      "file": "pixel/sources/diamond_sword.png",
+      "sha256": "5634a8cb79a70beb306210de9ec492fc2d4dc8f739372683e9882ef06bf63008",
+      "used_by_this_icon": false,
+      "jar": "https://piston-data.mojang.com/v1/objects/a7e5a6024bfd3cd614625aa05629adf760020304/client.jar",
+      "member": "assets/minecraft/textures/item/diamond_sword.png"
+    },
+    {
+      "file": "pixel/sources/enchanted_book.png",
+      "sha256": "f96da147fcf6f373df00ab5181043ea0c76af4ba7025f43f377f678ac466fb43",
+      "used_by_this_icon": false,
+      "jar": "https://piston-data.mojang.com/v1/objects/a7e5a6024bfd3cd614625aa05629adf760020304/client.jar",
+      "member": "assets/minecraft/textures/item/enchanted_book.png"
+    },
+    {
+      "file": "pixel/sources/grass_block_side.png",
+      "sha256": "ab572ac7ebd373abdeb961de1f3cba0afcd91e1acb700745ece4f719790bae3d",
+      "used_by_this_icon": false,
+      "jar": "https://piston-data.mojang.com/v1/objects/a7e5a6024bfd3cd614625aa05629adf760020304/client.jar",
+      "member": "assets/minecraft/textures/block/grass_block_side.png"
+    },
+    {
+      "file": "pixel/sources/grass_block_side_overlay.png",
+      "sha256": "43d98318407d9d122b83468cf183d18722e548c2144f9c2ffe2021b5c3e770e0",
+      "used_by_this_icon": false,
+      "jar": "https://piston-data.mojang.com/v1/objects/a7e5a6024bfd3cd614625aa05629adf760020304/client.jar",
+      "member": "assets/minecraft/textures/block/grass_block_side_overlay.png"
+    },
+    {
+      "file": "pixel/sources/grass_block_top.png",
+      "sha256": "52f44b64ce884a13dfe35e4b4da2e35898b790dd4d7a5ea536f1b0c0d56d29b4",
+      "used_by_this_icon": false,
+      "jar": "https://piston-data.mojang.com/v1/objects/a7e5a6024bfd3cd614625aa05629adf760020304/client.jar",
+      "member": "assets/minecraft/textures/block/grass_block_top.png"
+    },
+    {
+      "file": "pixel/sources/iron_sword.png",
+      "sha256": "ed1fa2f83955583e70a19791455d13989e8bd93b1d7240e775a57141022bed6b",
+      "used_by_this_icon": false,
+      "jar": "https://piston-data.mojang.com/v1/objects/a7e5a6024bfd3cd614625aa05629adf760020304/client.jar",
+      "member": "assets/minecraft/textures/item/iron_sword.png"
+    },
+    {
+      "file": "pixel/sources/supplied-skin.png",
+      "sha256": "e9ebbeece495d9c96040e235dc865fdb1a530cf6a2243a6c8fcec22e72f03e3f",
+      "used_by_this_icon": false,
+      "origin": "/home/thomas/Downloads/6b252bfa5cbcdd98.png",
+      "note": "owner-supplied skin file, not a Mojang asset"
+    },
+    {
+      "file": "pixel2/sources/container_hardcore.png",
+      "sha256": "5dad1a14187bf035d1cd56a5477f162e8f3baadeccadcc20e11f58db5a26ac0f",
+      "used_by_this_icon": false,
+      "jar": "round3/pixel2/jar/client-1.21.4.jar (official Java 1.21.4 client jar, sha256 c17c450c6e72cc51297daa57ce38f800aa01cf022b743daa21a0512d326d894e)",
+      "member": "assets/minecraft/textures/gui/sprites/hud/heart/container_hardcore.png"
+    },
+    {
+      "file": "pixel2/sources/hardcore_half.png",
+      "sha256": "2c8e12d1b2389b4f82fcadbe1bfabcbe354f33bd763737606124a1c4d236c1ae",
+      "used_by_this_icon": false,
+      "jar": "round3/pixel2/jar/client-1.21.4.jar (official Java 1.21.4 client jar, sha256 c17c450c6e72cc51297daa57ce38f800aa01cf022b743daa21a0512d326d894e)",
+      "member": "assets/minecraft/textures/gui/sprites/hud/heart/hardcore_half.png"
+    },
+    {
+      "file": "pixel2/sources/speed.png",
+      "sha256": "ba388036b839b85b04f300aaf81cbf73c452f43ecc4becdfb7296535962086a9",
+      "used_by_this_icon": false,
+      "jar": "round3/pixel2/jar/client-1.21.4.jar (official Java 1.21.4 client jar, sha256 c17c450c6e72cc51297daa57ce38f800aa01cf022b743daa21a0512d326d894e)",
+      "member": "assets/minecraft/textures/mob_effect/speed.png"
+    }
+  ]
+}
