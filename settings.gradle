@@ -8,7 +8,7 @@ pluginManagement {
 		mavenCentral()
 		gradlePluginPortal()
 	}
-	resolutionStrategy { eachPlugin { def moduleName = ['io.github.brainage04.fabric-mod-conventions':'fabric-mod-conventions-gradle','io.github.brainage04.client-gametest-recorder':'client-gametest-recorder-gradle','io.github.brainage04.production-gametests':'production-gametests-gradle','io.github.brainage04.workspace-dependencies':'workspace-dependencies-gradle','io.github.brainage04.mod-publishing':'mod-publishing-gradle'][requested.id.id]; if (moduleName != null) useModule("io.github.brainage04:${moduleName}:${requested.version}") } }
+	resolutionStrategy { eachPlugin { def moduleName = ['io.github.brainage04.fabric-mod-conventions':'fabric-mod-conventions-gradle','io.github.brainage04.multiloader-mod-conventions':'multiloader-mod-conventions-gradle','io.github.brainage04.client-gametest-recorder':'client-gametest-recorder-gradle','io.github.brainage04.production-gametests':'production-gametests-gradle','io.github.brainage04.workspace-dependencies':'workspace-dependencies-gradle','io.github.brainage04.mod-publishing':'mod-publishing-gradle'][requested.id.id]; if (moduleName != null) useModule("io.github.brainage04:${moduleName}:${requested.version}") } }
 }
 if (file('../FabricModdingConventions/settings.gradle').exists()) includeBuild('../FabricModdingConventions')
 rootProject.name = 'SimpleTwitchChat'
