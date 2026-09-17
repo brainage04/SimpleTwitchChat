@@ -8,10 +8,7 @@ configurations {
 	}
 }
 
-clientGameTestRecorder {
-	runDir.set(layout.buildDirectory.dir('run/productionClientGameTest'))
-	guiScale.set('3')
-}
+clientGameTestRecorder { guiScale.set('3') }
 
 
 dependencies {
