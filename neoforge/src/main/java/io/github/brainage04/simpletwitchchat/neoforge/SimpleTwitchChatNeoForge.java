@@ -26,7 +26,7 @@ public final class SimpleTwitchChatNeoForge {
 
 	private void registerCommands(RegisterClientCommandsEvent event) {
 		event.getDispatcher().register(Commands.literal("regenerateauthurl").executes(context -> RegenerateAuthUrlCommand.execute(Minecraft.getInstance().player)));
-		event.getDispatcher().register(Commands.literal("tc").executes(context -> TwitchChatCommand.execute(Minecraft.getInstance().player)).then(Commands.argument("message", StringArgumentType.string()).executes(context -> TwitchChatCommand.execute(Minecraft.getInstance().player, StringArgumentType.getString(context, "message")))));
+		event.getDispatcher().register(Commands.literal("tc").executes(context -> TwitchChatCommand.execute(Minecraft.getInstance().player)).then(Commands.argument("message", StringArgumentType.greedyString()).executes(context -> TwitchChatCommand.execute(Minecraft.getInstance().player, StringArgumentType.getString(context, "message")))));
 	}
 
 	private void onPlayerLogin(ClientPlayerNetworkEvent.LoggingIn event) {

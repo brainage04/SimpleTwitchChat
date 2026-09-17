@@ -15,7 +15,7 @@ public final class FabricModCommands {
 	public static void initialize() {
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
 			dispatcher.register(literal("regenerateauthurl").executes(context -> RegenerateAuthUrlCommand.execute(context.getSource().getPlayer())));
-			dispatcher.register(literal("tc").executes(context -> TwitchChatCommand.execute(context.getSource().getPlayer())).then(argument("message", StringArgumentType.string()).executes(context -> TwitchChatCommand.execute(context.getSource().getPlayer(), StringArgumentType.getString(context, "message")))));
+			dispatcher.register(literal("tc").executes(context -> TwitchChatCommand.execute(context.getSource().getPlayer())).then(argument("message", StringArgumentType.greedyString()).executes(context -> TwitchChatCommand.execute(context.getSource().getPlayer(), StringArgumentType.getString(context, "message")))));
 		});
 	}
 }
