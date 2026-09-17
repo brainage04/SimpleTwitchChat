@@ -10,7 +10,10 @@ public final class RegenerateAuthUrlCommand {
 
 	public static int execute(LocalPlayer player) {
 		player.sendSystemMessage(Component.literal("Restarting installed chatbot..."));
-		new Thread(InstalledChatbot::regenerate).start();
+		Thread.ofPlatform()
+				.name("simpletwitchchat-device-authorization")
+				.daemon(true)
+				.start(InstalledChatbot::regenerate);
 		return 1;
 	}
 }

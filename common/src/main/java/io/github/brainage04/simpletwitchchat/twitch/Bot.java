@@ -102,9 +102,22 @@ public class Bot {
         appendTwitchMessage(username, message);
     }
 
-    private static void appendClientMessage(MutableComponent message) {
-        if (Minecraft.getInstance().player != null) {
-            Minecraft.getInstance().player.sendSystemMessage(message);
+    public void close() {
+        if (client != null) {
+            client.close();
+            client = null;
         }
+        username = null;
+        executor.shutdownNow();
+    }
+
+    private static void appendClientMessage(MutableComponent message) {
+        Minecraft client = Minecraft.getInstance();
+        client.execute(() -> {
+            LocalPlayer player = client.player;
+            if (player != null) {
+                player.sendSystemMessage(message);
+            }
+        });
     }
 }

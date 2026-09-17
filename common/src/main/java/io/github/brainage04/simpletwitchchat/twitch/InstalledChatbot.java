@@ -20,7 +20,7 @@ import java.util.Arrays;
 
 public class InstalledChatbot {
     private static Bot bot;
-    private static URI activationUri = null;
+    private static volatile URI activationUri;
 
     public static Bot getBot() {
         return bot;
@@ -53,18 +53,30 @@ public class InstalledChatbot {
 
     public static void initialize() {
         bot = new Bot();
+        Thread.ofPlatform()
+                .name("simpletwitchchat-device-authorization")
+                .daemon(true)
+                .start(InstalledChatbot::requestAuthorization);
     }
 
     private static void requestAuthorization() {
         DeviceAuthorization req = getBot().getController().startOAuth2DeviceAuthorizationGrantType(
                 getBot().getIdentityProvider(),
                 Arrays.asList(TwitchScopes.CHAT_READ, TwitchScopes.CHAT_EDIT),
-                resp -> {
-                    OAuth2Credential token = resp.getCredential();
-                    if (token != null) {
-                        getBot().start(token);
+                response -> {
+                    OAuth2Credential token = response.getCredential();
+                    if (token == null) {
+                        SimpleTwitchChat.LOGGER.warn(
+                                "Could not obtain device flow token due to {}",
+                                response.getError()
+                        );
+                        return;
+                    }
 
-                        LocalPlayer player = Minecraft.getInstance().player;
+                    getBot().start(token);
+                    Minecraft client = Minecraft.getInstance();
+                    client.execute(() -> {
+                        LocalPlayer player = client.player;
                         if (player != null) {
                             FeedbackUtils.sendMessage(
                                     player,
@@ -72,31 +84,37 @@ public class InstalledChatbot {
                                     MessageType.SUCCESS
                             );
                         }
-                    } else {
-                        SimpleTwitchChat.LOGGER.warn("Could not obtain device flow token due to {}", resp.getError());
-                    }
+                    });
                 }
         );
 
         activationUri = URI.create(req.getCompleteUri());
         SimpleTwitchChat.LOGGER.info("The user should now visit: {}", getActivationUri());
+        sendAuthorizationPrompt();
+    }
+
+    private static void sendAuthorizationPrompt() {
+        Minecraft client = Minecraft.getInstance();
+        client.execute(() -> {
+            LocalPlayer player = client.player;
+            if (player == null) {
+                return;
+            }
+            FeedbackUtils.sendMessage(player, getAuthText(), MessageType.INFO);
+            FeedbackUtils.sendMessage(player, getRegenText(), MessageType.INFO);
+        });
+    }
+
+    public static synchronized void close() {
+        Bot currentBot = bot;
+        bot = null;
+        activationUri = null;
+        if (currentBot != null) {
+            currentBot.close();
+        }
     }
 
     public static void regenerate() {
         requestAuthorization();
-
-        LocalPlayer player = Minecraft.getInstance().player;
-        if (player == null) return;
-
-        FeedbackUtils.sendMessage(
-                player,
-                getAuthText(),
-                MessageType.INFO
-        );
-        FeedbackUtils.sendMessage(
-                player,
-                getRegenText(),
-                MessageType.INFO
-        );
     }
 }
