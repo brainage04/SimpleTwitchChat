@@ -8,6 +8,7 @@ version="${version}"
 displayName="SimpleTwitchChat"
 description='''A mod that integrates Twitch chat with Minecraft chat.'''
 logoFile="assets/simpletwitchchat/icon.png"
+logoBlur=false
 
 [[mixins]]
 config="simpletwitchchat.mixins.json"
