@@ -11,9 +11,4 @@ configurations {
 dependencies {
 	compileOnly files(configurations.twitchLibraries)
 	twitchLibraries "com.github.twitch4j:twitch4j:${rootProject.twitch4j_version}"
-	testImplementation platform('org.junit:junit-bom:6.0.3')
-	testImplementation 'org.junit.jupiter:junit-jupiter'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
-
-test { useJUnitPlatform() }

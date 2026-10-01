@@ -3,6 +3,7 @@
 	"id": "${mod_id}-gametest",
 	"version": "${mod_version}",
 	"name": "${mod_name} Game Tests",
+	"icon": "assets/simpletwitchchat/icon.png",
 	"environment": "client",
 	"entrypoints": {
 		"fabric-client-gametest": [
