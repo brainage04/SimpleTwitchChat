@@ -131,6 +131,21 @@ for down in (1, 3):
             "Official Java 1.21.4 client.jar: mob_effect/speed.png, gui/sprites/hud/heart/container_hardcore.png, gui/sprites/hud/heart/hardcore_half.png",
         )
 
+# Shipped revision (owner, 2026-10-02): the down1-left7 variant with 2 px cropped off
+# every side (36x36 -> 32x32), the heart then moved 2 px right (it lands at (2, 8)),
+# and the result enlarged 16x with NEAREST to the required 512x512.
+im = canvas(32)
+im.alpha_composite(scale(effect, 2).crop((2, 2, 34, 34)))
+# down1-left7 heart origin (2, 10), minus the (2, 2) crop -> (0, 8), plus 2 px right -> (2, 8)
+im.alpha_composite(scale(heart, 2), (2, 8))
+save(
+    "AcceleratedDamage",
+    "accelerated-damage",
+    scale(im, 16),
+    "down1-left7 variant cropped 2 px on every side to 32x32, heart moved 2 px right to (2, 8), then enlarged 16x with NEAREST to 512x512.",
+    "Official Java 1.21.4 client.jar: mob_effect/speed.png, gui/sprites/hud/heart/container_hardcore.png, gui/sprites/hud/heart/hardcore_half.png",
+)
+
 # ---------------------------------------------------------------- GetEnchantInfo
 # First-pass composition (enchanted book doubled + native 16x16 information
 # symbol) with the eight pixels the user marked filled in the disc blue.
@@ -181,6 +196,15 @@ save(
     "simple-twitch-chat",
     bubble,
     "Native 16x16 speech bubble: white fill, purple border, three black dots vertically centred in the interior, and a solid purple right-angle isosceles triangle tail (rows 11-14, cols 1-4) that stops one pixel above the bottom edge like the other three margins.",
+    "Original deterministic pixel symbol",
+)
+# Shipped icon (owner rule 2026-10-02: square, 512 or 1024 px): the native 16x16 bubble
+# enlarged 32x with NEAREST.
+save(
+    "SimpleTwitchChat",
+    "simple-twitch-chat-512",
+    scale(bubble, 32),
+    "The native 16x16 bubble above enlarged 32x with NEAREST to 512x512.",
     "Original deterministic pixel symbol",
 )
 
