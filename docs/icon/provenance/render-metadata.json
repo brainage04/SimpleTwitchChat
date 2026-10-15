@@ -1,0 +1,21 @@
+{
+  "blender": "5.1.1",
+  "build_hash": "b70da489d7f4",
+  "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/heavy.slice/heavy-2-371252.scope",
+  "denoising": true,
+  "device": "CPU",
+  "engine": "CYCLES",
+  "output": "/tmp/icon-ideas/vanilla-r8-stc/simpletwitchchat/icon.png",
+  "output_sha256": "4b09cd939c58c9d5f9c5721cb296126dc3073d09b1843fa29521a2320debb044",
+  "patch_sha256": "bd02f7d58a593c5e9c28ea98782154ab322964210b8d759eeeaf48edaa87ee41",
+  "rendered_reopened_saved_blend": true,
+  "samples": 128,
+  "saved_blend_sha256": "1d871dc52e37af800b27f9a2114f64475182c2ed9a9d9d3a551b058789fe1d34",
+  "seconds": 40.15383810503408,
+  "seed": 20261014,
+  "size": [
+    1024,
+    1024
+  ],
+  "threads": 4
+}

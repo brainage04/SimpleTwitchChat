@@ -1,0 +1,13 @@
+{
+  "checked_at_utc": "2026-10-15T04:50:39.028219+00:00",
+  "all_export_hashes_match": true,
+  "all_pngs_decode": true,
+  "comparison_saved_crops_equal_exact_4x_original_pixels": true,
+  "thumbnails_equal_lanczos_of_1024": true,
+  "required_readme_and_report_present": true,
+  "full_icon_comparison_and_thumbnails_visually_inspected": true,
+  "no_blender_process": true,
+  "pgrep_exit_status": 1,
+  "pgrep_stdout": "",
+  "packed_scene_reopened_and_rendered": true
+}

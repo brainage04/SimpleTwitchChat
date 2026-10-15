@@ -1,0 +1,81 @@
+{
+  "box_edges": "right/bottom exclusive",
+  "comparison_crop_pixel_equality_checked": true,
+  "comparison_crop_placements": [
+    {
+      "round": "Round 6",
+      "size": [
+        760,
+        360
+      ],
+      "xy": [
+        20,
+        876
+      ]
+    },
+    {
+      "round": "Round 8",
+      "size": [
+        760,
+        360
+      ],
+      "xy": [
+        812,
+        876
+      ]
+    }
+  ],
+  "comparison_full_icon_preview_size": [
+    768,
+    768
+  ],
+  "comparison_pixels_from_original_pngs": true,
+  "comparison_size": [
+    1600,
+    1312
+  ],
+  "crop_box": [
+    384,
+    208,
+    574,
+    298
+  ],
+  "icon_pixels_modified_after_render": false,
+  "reference_image": "../../thomas-fill-region.png",
+  "reference_red_square_box": [
+    61,
+    110,
+    120,
+    169
+  ],
+  "reference_size": [
+    447,
+    226
+  ],
+  "reference_to_source_registration": {
+    "approximate_red_square_native_box": [
+      405,
+      247,
+      431,
+      274
+    ],
+    "best_fit_native_origin": [
+      384.125,
+      208.0
+    ],
+    "best_fit_scale": 2.2979999999999956,
+    "mean_squared_residual": 8.650876530865826,
+    "method": "Unmarked screenshot pixels matched to round-6 PNG; nearest pixel-grid search with per-channel affine color fit for dimmed screenshot. The supplied screenshot is resized and clipped, not a lossless native crop.",
+    "visible_native_crop_rounding": "Nearest integer pixel bounds: [384,208,574,298]. Bounds identify the same visible region; no claim of bit-identical screenshot colors."
+  },
+  "reference_visible_image_origin": [
+    12,
+    19
+  ],
+  "resampling": "NEAREST",
+  "scale": 4,
+  "source_size": [
+    1024,
+    1024
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "compare.png": {
+    "mode": "RGB",
+    "sha256": "e62a39a308d569fa390667f444fdfb5ebd87f036748cf7b4ef9c0e53be1e500b",
+    "size": [
+      1600,
+      1312
+    ]
+  },
+  "simpletwitchchat/icon-128.png": {
+    "mode": "RGBA",
+    "sha256": "79225afc0399442bd57caea28ca0a2f06a4feae1474c3f0c44c9426670f23837",
+    "size": [
+      128,
+      128
+    ]
+  },
+  "simpletwitchchat/icon-64.png": {
+    "mode": "RGBA",
+    "sha256": "d56496aee60fd740b32cc97fbc8104ec2ceccdb88dcad0cb27bc5d0e48abf5cb",
+    "size": [
+      64,
+      64
+    ]
+  },
+  "simpletwitchchat/icon.png": {
+    "mode": "RGBA",
+    "sha256": "4b09cd939c58c9d5f9c5721cb296126dc3073d09b1843fa29521a2320debb044",
+    "size": [
+      1024,
+      1024
+    ]
+  },
+  "simpletwitchchat/provenance/final.blend": {
+    "sha256": "1d871dc52e37af800b27f9a2114f64475182c2ed9a9d9d3a551b058789fe1d34"
+  }
+}

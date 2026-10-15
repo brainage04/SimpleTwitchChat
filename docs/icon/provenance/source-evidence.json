@@ -1,0 +1,39 @@
+{
+  "feedback": {
+    "thomas-fill-region.png": "f6958a95678104b4ae1de76523e03bd3816281b52c23cb67ba93238dc8b44e4f",
+    "thomas-stub-feedback.png": "70772bf7b3d96690fde2b62f359bf6b6bae6e2470e9c096246e86d5c533b83d4"
+  },
+  "round6_files_before": {
+    "README.md": "d33512d05f16bbfca494c331ebb6f499b593dbbc15ac7bed48a9a3bbee0b4aed",
+    "icon-128.png": "25e6199a8fc55f8c2a9d5725c667b8687331b149e1886568a92191491033d358",
+    "icon-64.png": "c25cf36f2c2ef1cced9829f5da6ed71d9969de0119b6366595096b3f2b5425ed",
+    "icon.png": "e2191c058617baf618975a11563f1306335384d6c4f8216d9451bc496389e90f",
+    "provenance/baseline-rerender.png": "c1a8b9309b02e3b3bc3f24359b0129750c12eef27accb81018b996455869b5bc",
+    "provenance/baseline-scene.json": "1e1a643fce79415769d17a693d272611b638e3733baa559c8871e1cebdb91227",
+    "provenance/blender.sh": "f636800cc1440eeda37fadbb6ae2e44b9e61962b1a78379b6eed961bd67cf64d",
+    "provenance/crops.json": "6aa910277efbb9077a9a4985cc6d3564ceec235b3aeabfcfdfc877f40699f777",
+    "provenance/exports.json": "2f19df84610674490146b4b158ff1fb989ff28b5b686ff784f96f0e2171dfb36",
+    "provenance/final-scene.json": "fb63afee51f42ff837909e14e93b1cf390a236f3b409fb8e8f3b03acb76082c6",
+    "provenance/final.blend": "51921fb6feeab6a5c396ff793e4f5182641dce650c979dde38a44608a735b523",
+    "provenance/invariant-report.json": "9fdda86e31a552e31e1388d7adf83a42e0b94787ad8d4db77c01344ce669b8e5",
+    "provenance/package-evidence.py": "c21be1bb63c712b32274cef1f121a6db3a34a1f025d7eb20fbba19b8282d6b9f",
+    "provenance/pixel-differences.json": "635071e4c427b8fafae28fdd7fc71eb3f1e5379dfdd52563afe4eb32bfab925e",
+    "provenance/preservation-verification.json": "f184507beae8e460db0d16952161cabf4b2ed16f5ece888479884faf025aa85f",
+    "provenance/process-status.json": "7e65ee9b6c352de3076f927edf0b6c0f7b1eaf38792ce83ee5d19c860c00ddbf",
+    "provenance/remove-seams.py": "45b5d10f336480ef06fd1f2557e8e64a5c91842b0fe9a9a4762ccf83eea15f23",
+    "provenance/render-metadata.json": "e47c4ca9bc2b5c1b333c8ecc6eb9797bcafbc47fe5b738b9f959e9b997afb4bd",
+    "provenance/seam-mask.png": "80e1579b66b49f8f8cd89a7f4eb6655b9bab7a0892dd886dd31a31ba3299a920",
+    "provenance/seam-projection.json": "7ac661f3a02683b22ae3ca3fb35fa7d07beeaa53b67bebac3ab8b87e495c9caa",
+    "provenance/source-evidence.json": "9450d7d1d61a8035be82263894f5b8b527310d62875e5aa525c20e0fbd669192",
+    "provenance/source-r3-report.md": "17b33195205a67784e143bd066ed3bb1ec6ad3b47407859b6106cabb7f8caa29",
+    "provenance/source-r4/README.md": "35ef04d34015322f5df9019916286de8af5c954e9fb29b22381e2dac429a7043",
+    "provenance/source-r4/final-renderer.json": "5fb4d55308ccff7b306bff546d55fab8b72cafdf72dbfd9c23618a13aa53546c",
+    "provenance/source-r4/final-scene.json": "54095f6d1b3e8c7b9d505d05b8199178e10a8ddc3aa0a9f29010c1dc1dad81dd",
+    "provenance/source-r4/final.blend": "98019eed325d0b99da2ca9921271747f5bd7c8dbb2c244d7c464f66abbc9270b",
+    "provenance/source-r4/icon.png": "1f129862c304728273d87237f84fdbf9d0cb81da577943f8e31bc4cbc95e4674",
+    "provenance/source-r4/patch-sign.py": "30887c500c9857caba4c1c2d5f54b7de2868086b7f0c379f14fe54646190d293"
+  },
+  "round6_root": "/tmp/icon-ideas/vanilla-r6-stc/simpletwitchchat",
+  "round7_accessed": false,
+  "source_recorder_original": "/tmp/icon-ideas/vanilla-r6-stc/simpletwitchchat/provenance/source-r4/patch-sign.py"
+}

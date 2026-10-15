@@ -1,0 +1,143 @@
+{
+  "all_checks_pass": true,
+  "board_bounds": [
+    [
+      -0.800000011920929,
+      -0.265625,
+      0.5600000023841858
+    ],
+    [
+      0.699999988079071,
+      0.015625,
+      1.434999942779541
+    ]
+  ],
+  "changed_uv_loop_indices": [
+    8,
+    9,
+    12,
+    13,
+    16,
+    17,
+    20,
+    21
+  ],
+  "changed_vertex_indices": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "checks": {
+    "all_24_other_objects_exact": true,
+    "all_stub_xy_coordinates_exact": true,
+    "all_three_source_images_still_packed": true,
+    "all_top_vertices_exact": true,
+    "compositor_exact": true,
+    "cycles_exact": true,
+    "display_settings_exact": true,
+    "entire_record_equals_only_requested_delta": true,
+    "image_settings_exact": true,
+    "images_exact": true,
+    "materials_exact": true,
+    "nominal_extension_14_texels": true,
+    "only_eight_lower_side_v_coordinates_changed": true,
+    "only_four_lower_vertices_changed": true,
+    "other_mesh_float_and_topology_buffers_exact": true,
+    "render_exact": true,
+    "render_filepath_exact": true,
+    "scene_camera_exact": true,
+    "side_vertical_metric_uv_exact": true,
+    "top_and_bottom_face_uvs_exact": true,
+    "view_settings_exact": true,
+    "world_exact": true
+  },
+  "downward_length_blocks": 0.8749999403953552,
+  "downward_length_texels": 13.999999046325684,
+  "final_blend_sha256": "1d871dc52e37af800b27f9a2114f64475182c2ed9a9d9d3a551b058789fe1d34",
+  "fixed_top_z": 1.591249942779541,
+  "fixed_upper_side_v": 0.15624994039535522,
+  "new_bottom_z": 0.5600000023841858,
+  "new_bounds": [
+    [
+      -0.18000000715255737,
+      -0.125,
+      0.5600000023841858
+    ],
+    [
+      0.07000000029802322,
+      0.125,
+      1.591249942779541
+    ]
+  ],
+  "new_lower_side_v": -0.875,
+  "old_bottom_z": 1.434999942779541,
+  "old_bounds": [
+    [
+      -0.18000000715255737,
+      -0.125,
+      1.434999942779541
+    ],
+    [
+      0.07000000029802322,
+      0.125,
+      1.591249942779541
+    ]
+  ],
+  "old_lower_side_v": -5.7220457705398076e-08,
+  "packed_image_hashes": {
+    "Authored STC purple pixel tiles 16x16": "b7924cb10bf9f81a9cc0260bd1e652bb5a70fd74647fe12cfd37a5ddb31719dd",
+    "Minecraft 1.21.1 block/oak_log.png 16x16": "060c93128fb65aa350a84e4b6576e616c47d40211bbe537cfe923a81d072e30c",
+    "Minecraft 1.21.1 block/oak_planks.png 16x16": "3a33db67a3ba30537d0890a5cb37c8087ca336be89cbb1393a71c23224e361a8"
+  },
+  "projected_new_lower_corners": [
+    [
+      459.6329345703125,
+      675.3275451660156
+    ],
+    [
+      565.6390991210938,
+      656.8180541992188
+    ],
+    [
+      512.635986328125,
+      619.7991027832031
+    ],
+    [
+      406.6298522949219,
+      638.3085632324219
+    ]
+  ],
+  "projected_old_lower_corners": [
+    [
+      459.6329345703125,
+      286.62841796875
+    ],
+    [
+      565.6390991210938,
+      268.118896484375
+    ],
+    [
+      512.6360473632812,
+      231.0999755859375
+    ],
+    [
+      406.6298522949219,
+      249.60943603515625
+    ]
+  ],
+  "source_blend_sha256": "51921fb6feeab6a5c396ff793e4f5182641dce650c979dde38a44608a735b523",
+  "unchanged_post_bounds": [
+    [
+      -0.17499999701976776,
+      -0.125,
+      0.0
+    ],
+    [
+      0.07500000298023224,
+      0.125,
+      0.6399999856948853
+    ]
+  ],
+  "uv_policy": "Keep upper UVs and every U coordinate. Lower side V changes by the same amount as Z; 16x16 packed oak_log, REPEAT, Closest, no stretching."
+}
