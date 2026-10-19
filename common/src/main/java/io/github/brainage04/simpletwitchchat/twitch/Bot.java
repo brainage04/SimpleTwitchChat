@@ -9,7 +9,9 @@ import com.github.twitch4j.TwitchClientBuilder;
 import com.github.twitch4j.auth.domain.TwitchScopes;
 import com.github.twitch4j.auth.providers.TwitchIdentityProvider;
 import com.github.twitch4j.chat.events.channel.ChannelMessageEvent;
+import com.github.twitch4j.client.websocket.domain.WebsocketConnectionState;
 import com.github.twitch4j.common.util.ThreadUtils;
+import io.github.brainage04.simpletwitchchat.SimpleTwitchChat;
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -126,7 +128,8 @@ public class Bot {
             errors.accept(NOT_AUTHORISED);
             return false;
         }
-        if (!client.getChat().isChannelJoined(username)) {
+        if (client.getChat().getState() != WebsocketConnectionState.CONNECTED
+                || !client.getChat().isChannelJoined(username)) {
             errors.accept("Twitch chat is not connected yet. Please try again shortly.");
             return false;
         }
@@ -158,8 +161,10 @@ public class Bot {
         } finally {
             try {
                 controller.close();
+                SimpleTwitchChat.LOGGER.info("Twitch device authorisation controller closed.");
             } finally {
                 executor.shutdownNow();
+                SimpleTwitchChat.LOGGER.info("Twitch bot executor shutdown requested: {}.", executor.isShutdown());
             }
         }
     }

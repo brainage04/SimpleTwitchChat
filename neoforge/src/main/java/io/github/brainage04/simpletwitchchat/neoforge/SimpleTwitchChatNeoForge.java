@@ -34,6 +34,7 @@ public final class SimpleTwitchChatNeoForge {
 	}
 
 	private void onClientStopping(ClientStoppingEvent event) {
+		SimpleTwitchChat.LOGGER.info("NeoForge client stopping: closing Twitch chat.");
 		InstalledChatbot.close();
 	}
 }

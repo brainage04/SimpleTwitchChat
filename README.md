@@ -10,6 +10,7 @@ Each time you launch Minecraft, authorise the SimpleTwitchChat bot when prompted
 
 - Your Twitch chat messages will appear in your Minecraft chat.
 - Your Minecraft chat messages will appear in your Twitch chat when using `/tc <message>` or `/tc` to toggle between sending messages in Minecraft chat or Twitch chat by default.
+- Messages sent while Twitch is disconnected are rejected.
 
 ## Getting started
 

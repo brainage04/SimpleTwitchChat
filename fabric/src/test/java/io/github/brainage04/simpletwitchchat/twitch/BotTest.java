@@ -6,8 +6,11 @@ import com.github.philippheuer.credentialmanager.domain.DeviceAuthorization;
 import com.github.philippheuer.credentialmanager.domain.DeviceTokenResponse;
 import com.github.twitch4j.ITwitchClient;
 import com.github.twitch4j.chat.events.channel.ChannelMessageEvent;
+import com.github.twitch4j.client.websocket.domain.WebsocketConnectionState;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -45,6 +48,7 @@ class BotTest {
         OAuth2Credential token = mock(OAuth2Credential.class);
         when(token.getUserName()).thenReturn("streamer");
         bot.start(token);
+        when(client.getChat().getState()).thenReturn(WebsocketConnectionState.CONNECTED);
     }
 
     @AfterEach
@@ -80,9 +84,22 @@ class BotTest {
         assertTrue(errors.isEmpty());
     }
 
-    @Test
-    void disconnectedMessagesAreRejectedAndNotEchoed() {
+    @ParameterizedTest
+    @EnumSource(value = WebsocketConnectionState.class, names = {"DISCONNECTED", "RECONNECTING", "LOST"})
+    void disconnectedMessagesAreRejectedAndNotEchoed(WebsocketConnectionState state) {
         start();
+        when(client.getChat().isChannelJoined("streamer")).thenReturn(true);
+        when(client.getChat().getState()).thenReturn(state);
+        assertFalse(bot.sendChatMessage("lost"));
+        verify(client.getChat(), never()).sendMessage("streamer", "lost");
+        assertTrue(messages.isEmpty());
+        assertTrue(errors.getFirst().contains("not connected"));
+    }
+
+    @Test
+    void connectedButUnjoinedMessagesAreRejectedAndNotEchoed() {
+        start();
+        when(client.getChat().isChannelJoined("streamer")).thenReturn(false);
         assertFalse(bot.sendChatMessage("lost"));
         verify(client.getChat(), never()).sendMessage("streamer", "lost");
         assertTrue(messages.isEmpty());

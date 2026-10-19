@@ -51,6 +51,10 @@ public class InstalledChatbot {
     }
 
     public static void sendAuthorizationPrompt() {
+        if (SESSION.getActivationUri() == null) {
+            return;
+        }
+        SimpleTwitchChat.LOGGER.info("Twitch authorisation link is ready; browser approval is pending.");
         Minecraft client = Minecraft.getInstance();
         client.execute(() -> {
             LocalPlayer player = client.player;
