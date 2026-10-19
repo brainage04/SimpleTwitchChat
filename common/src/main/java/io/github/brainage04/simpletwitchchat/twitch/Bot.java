@@ -6,47 +6,78 @@ import com.github.philippheuer.credentialmanager.authcontroller.DeviceFlowContro
 import com.github.philippheuer.credentialmanager.domain.OAuth2Credential;
 import com.github.twitch4j.ITwitchClient;
 import com.github.twitch4j.TwitchClientBuilder;
+import com.github.twitch4j.auth.domain.TwitchScopes;
 import com.github.twitch4j.auth.providers.TwitchIdentityProvider;
 import com.github.twitch4j.chat.events.channel.ChannelMessageEvent;
 import com.github.twitch4j.common.util.ThreadUtils;
-import io.github.brainage04.simpletwitchchat.util.feedback.FeedbackUtils;
-import io.github.brainage04.simpletwitchchat.util.feedback.MessageType;
-import net.minecraft.client.player.LocalPlayer;
+import java.net.URI;
+import java.util.List;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.ChatFormatting;
-
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 public class Bot {
     private static final String CLIENT_ID = "0bw1jo9kaot6nn6utin49if1n6pjj4";
+    private static final String NOT_AUTHORISED =
+            "You have not authorised the SimpleTwitchChat bot! Please do so before trying to send messages to Twitch chat.";
 
     private final TwitchIdentityProvider identityProvider;
     private final ScheduledThreadPoolExecutor executor;
     private final DeviceFlowController controller;
     private final CredentialManager credentialManager;
+    private final Function<OAuth2Credential, ITwitchClient> clientFactory;
+    private final BiConsumer<String, String> messages;
+    private final Consumer<String> errors;
     private ITwitchClient client;
     private String username;
-
-    public TwitchIdentityProvider getIdentityProvider() {
-        return identityProvider;
-    }
-
-    public DeviceFlowController getController() {
-        return controller;
-    }
+    private boolean closed;
 
     public Bot() {
-        identityProvider = new TwitchIdentityProvider(CLIENT_ID, null, null);
-        executor = ThreadUtils.getDefaultScheduledThreadPoolExecutor("t4j-bot", Runtime.getRuntime().availableProcessors());
-        controller = new DeviceFlowController(executor, 0);
-        credentialManager = CredentialManagerBuilder.builder().withAuthenticationController(controller).build();
-        credentialManager.registerIdentityProvider(identityProvider);
+        this(
+                ThreadUtils.getDefaultScheduledThreadPoolExecutor("t4j-bot", 2),
+                null,
+                Bot::appendTwitchMessage,
+                Bot::appendError);
     }
 
-    public void start(OAuth2Credential credential) {
-        client = TwitchClientBuilder.builder()
+    Bot(
+            ScheduledThreadPoolExecutor executor,
+            Function<OAuth2Credential, ITwitchClient> clientFactory,
+            BiConsumer<String, String> messages,
+            Consumer<String> errors) {
+        this.executor = executor;
+        this.messages = messages;
+        this.errors = errors;
+        identityProvider = new TwitchIdentityProvider(CLIENT_ID, null, null);
+        controller = new DeviceFlowController(executor, 0);
+        credentialManager =
+                CredentialManagerBuilder.builder().withAuthenticationController(controller).build();
+        credentialManager.registerIdentityProvider(identityProvider);
+        this.clientFactory = clientFactory != null ? clientFactory : this::createClient;
+    }
+
+    public URI authorize(Consumer<OAuth2Credential> authorized, Consumer<String> failed) {
+        var request =
+                controller.startOAuth2DeviceAuthorizationGrantType(
+                        identityProvider,
+                        List.of(TwitchScopes.CHAT_READ, TwitchScopes.CHAT_EDIT),
+                        response -> {
+                            if (response.getCredential() == null) {
+                                failed.accept(
+                                        "Twitch authorisation failed. Use /regenerateauthurl to try again.");
+                            } else {
+                                authorized.accept(response.getCredential());
+                            }
+                        });
+        return URI.create(request.getCompleteUri());
+    }
+
+    private ITwitchClient createClient(OAuth2Credential credential) {
+        return TwitchClientBuilder.builder()
                 .withClientId(CLIENT_ID)
                 .withScheduledThreadPoolExecutor(executor)
                 .withCredentialManager(credentialManager)
@@ -55,69 +86,87 @@ public class Bot {
                 .withEnableHelix(true)
                 .withDefaultAuthToken(credential)
                 .build();
-        username = credential.getUserName();
+    }
 
-        client.getEventManager().onEvent(ChannelMessageEvent.class, event -> appendTwitchMessage(event.getUser().getName(), event.getMessage()));
+    public synchronized void start(OAuth2Credential credential) {
+        if (closed) {
+            return;
+        }
+        String account = credential.getUserName();
+        if (account == null || account.isBlank()) {
+            throw new IllegalArgumentException("Twitch did not provide an account name.");
+        }
+        client = clientFactory.apply(credential);
+        username = account;
+        client.getEventManager()
+                .onEvent(
+                        ChannelMessageEvent.class,
+                        event -> receiveMessage(event.getUser().getName(), event.getMessage()));
+        client.getChat().joinChannel(username);
+    }
+
+    synchronized void receiveMessage(String sender, String message) {
+        if (!closed) {
+            messages.accept(sender, message);
+        }
+    }
+
+    public synchronized boolean sendChatMessage(String message) {
+        if (closed || client == null || username == null) {
+            errors.accept(NOT_AUTHORISED);
+            return false;
+        }
+        if (!client.getChat().isChannelJoined(username)) {
+            errors.accept("Twitch chat is not connected yet. Please try again shortly.");
+            return false;
+        }
+        try {
+            client.getChat().sendMessage(username, message);
+            messages.accept(username, message);
+            return true;
+        } catch (RuntimeException exception) {
+            errors.accept("Could not send your Twitch message. Please try again shortly.");
+            return false;
+        }
+    }
+
+    public synchronized void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        username = null;
+        try {
+            if (client != null) {
+                client.close();
+            }
+        } finally {
+            client = null;
+            controller.close();
+            executor.shutdownNow();
+        }
     }
 
     private static void appendTwitchMessage(String username, String message) {
         appendClientMessage(
                 Component.empty()
-                        .append(Component.literal("[%s] ".formatted(username)).withStyle(ChatFormatting.DARK_PURPLE))
-                        .append(message)
-        );
+                        .append(
+                                Component.literal("[%s] ".formatted(username))
+                                        .withStyle(ChatFormatting.DARK_PURPLE))
+                        .append(message));
     }
 
-    public void sendChatMessage(LocalPlayer source, String message) { if (username == null || username.isEmpty()) {
-        FeedbackUtils.sendMessage(
-                source,
-                "You have not authorised the SimpleTwitchChat bot! Please do so before trying to send messages to Twitch chat.",
-                MessageType.ERROR
-        );
-    
-        return;
-    }
-    
-    if (!client.getChat().isChannelJoined(username)) {
-        client.getChat().joinChannel(username);
-    }
-    
-    client.getChat().sendMessage(username, message);
-    appendTwitchMessage(username, message); }
-
-    public void sendChatMessage(String message) {
-        if (username == null || username.isEmpty()) {
-            appendClientMessage(Component.literal(
-                    "You have not authorised the SimpleTwitchChat bot! Please do so before trying to send messages to Twitch chat."
-            ).withStyle(ChatFormatting.RED));
-
-            return;
-        }
-
-        if (!client.getChat().isChannelJoined(username)) {
-            client.getChat().joinChannel(username);
-        }
-
-        client.getChat().sendMessage(username, message);
-        appendTwitchMessage(username, message);
+    static void appendError(String message) {
+        appendClientMessage(Component.literal(message).withStyle(ChatFormatting.RED));
     }
 
-    public void close() {
-        if (client != null) {
-            client.close();
-            client = null;
-        }
-        username = null;
-        executor.shutdownNow();
-    }
-
-    private static void appendClientMessage(MutableComponent message) {
+    private static void appendClientMessage(Component message) {
         Minecraft client = Minecraft.getInstance();
-        client.execute(() -> {
-            LocalPlayer player = client.player;
-            if (player != null) {
-                player.sendSystemMessage(message);
-            }
-        });
+        client.execute(
+                () -> {
+                    if (client.player != null) {
+                        client.player.sendSystemMessage(message);
+                    }
+                });
     }
 }

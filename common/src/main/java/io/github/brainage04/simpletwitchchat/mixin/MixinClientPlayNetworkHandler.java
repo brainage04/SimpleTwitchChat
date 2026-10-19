@@ -13,7 +13,7 @@ public class MixinClientPlayNetworkHandler {
     @Inject(at = @At("HEAD"), method = "sendChat", cancellable = true)
     private void sendChatMessage(String content, CallbackInfo ci) {
         if (SimpleTwitchChatState.twitchChatToggled) {
-            InstalledChatbot.getBot().sendChatMessage(content);
+            InstalledChatbot.sendChatMessage(content);
             ci.cancel();
         }
     }

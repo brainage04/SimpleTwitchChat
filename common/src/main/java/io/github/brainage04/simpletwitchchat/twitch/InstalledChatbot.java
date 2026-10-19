@@ -1,8 +1,5 @@
 package io.github.brainage04.simpletwitchchat.twitch;
 
-import com.github.philippheuer.credentialmanager.domain.DeviceAuthorization;
-import com.github.philippheuer.credentialmanager.domain.OAuth2Credential;
-import com.github.twitch4j.auth.domain.TwitchScopes;
 import io.github.brainage04.simpletwitchchat.SimpleTwitchChat;
 import io.github.brainage04.simpletwitchchat.util.feedback.FeedbackUtils;
 import io.github.brainage04.simpletwitchchat.util.feedback.MessageType;
@@ -16,18 +13,21 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 
 import java.net.URI;
-import java.util.Arrays;
 
 public class InstalledChatbot {
-    private static Bot bot;
-    private static volatile URI activationUri;
-
-    public static Bot getBot() {
-        return bot;
-    }
+    private static final ChatbotSession SESSION = new ChatbotSession(
+            Bot::new,
+            task -> Thread.ofPlatform().name("simpletwitchchat-device-authorization")
+                    .daemon(true).start(task),
+            InstalledChatbot::sendAuthorizationPrompt,
+            () -> sendFeedback("SimpleTwitchChat bot has now been authorised.", MessageType.SUCCESS),
+            message -> {
+                SimpleTwitchChat.LOGGER.warn("{}", message);
+                sendFeedback(message, MessageType.ERROR);
+            });
 
     public static URI getActivationUri() {
-        return activationUri;
+        return SESSION.getActivationUri();
     }
 
     public static MutableComponent getAuthText() {
@@ -52,52 +52,14 @@ public class InstalledChatbot {
     }
 
     public static void initialize() {
-        bot = new Bot();
-        Thread.ofPlatform()
-                .name("simpletwitchchat-device-authorization")
-                .daemon(true)
-                .start(InstalledChatbot::requestAuthorization);
-    }
-
-    private static void requestAuthorization() {
-        DeviceAuthorization req = getBot().getController().startOAuth2DeviceAuthorizationGrantType(
-                getBot().getIdentityProvider(),
-                Arrays.asList(TwitchScopes.CHAT_READ, TwitchScopes.CHAT_EDIT),
-                response -> {
-                    OAuth2Credential token = response.getCredential();
-                    if (token == null) {
-                        SimpleTwitchChat.LOGGER.warn(
-                                "Could not obtain device flow token due to {}",
-                                response.getError()
-                        );
-                        return;
-                    }
-
-                    getBot().start(token);
-                    Minecraft client = Minecraft.getInstance();
-                    client.execute(() -> {
-                        LocalPlayer player = client.player;
-                        if (player != null) {
-                            FeedbackUtils.sendMessage(
-                                    player,
-                                    "SimpleTwitchChat bot has now been authorised.",
-                                    MessageType.SUCCESS
-                            );
-                        }
-                    });
-                }
-        );
-
-        activationUri = URI.create(req.getCompleteUri());
-        SimpleTwitchChat.LOGGER.info("The user should now visit: {}", getActivationUri());
-        sendAuthorizationPrompt();
+        SESSION.initialize();
     }
 
     private static void sendAuthorizationPrompt() {
         Minecraft client = Minecraft.getInstance();
         client.execute(() -> {
             LocalPlayer player = client.player;
-            if (player == null) {
+            if (player == null || getActivationUri() == null) {
                 return;
             }
             FeedbackUtils.sendMessage(player, getAuthText(), MessageType.INFO);
@@ -105,16 +67,24 @@ public class InstalledChatbot {
         });
     }
 
-    public static synchronized void close() {
-        Bot currentBot = bot;
-        bot = null;
-        activationUri = null;
-        if (currentBot != null) {
-            currentBot.close();
-        }
+    private static void sendFeedback(String message, MessageType type) {
+        Minecraft client = Minecraft.getInstance();
+        client.execute(() -> {
+            if (client.player != null) {
+                FeedbackUtils.sendMessage(client.player, message, type);
+            }
+        });
+    }
+
+    public static boolean sendChatMessage(String message) {
+        return SESSION.sendChatMessage(message);
+    }
+
+    public static void close() {
+        SESSION.close();
     }
 
     public static void regenerate() {
-        requestAuthorization();
+        SESSION.regenerate();
     }
 }

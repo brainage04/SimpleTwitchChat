@@ -14,6 +14,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
+import net.neoforged.neoforge.client.event.lifecycle.ClientStoppingEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
 @Mod(value = SimpleTwitchChat.MOD_ID, dist = Dist.CLIENT)
@@ -22,6 +23,7 @@ public final class SimpleTwitchChatNeoForge {
 		SimpleTwitchChat.initialize();
 		NeoForge.EVENT_BUS.addListener(this::registerCommands);
 		NeoForge.EVENT_BUS.addListener(this::onPlayerLogin);
+		NeoForge.EVENT_BUS.addListener(this::onClientStopping);
 	}
 
 	private void registerCommands(RegisterClientCommandsEvent event) {
@@ -34,5 +36,9 @@ public final class SimpleTwitchChatNeoForge {
 			FeedbackUtils.sendMessage(Minecraft.getInstance().player, InstalledChatbot.getAuthText(), MessageType.INFO);
 			FeedbackUtils.sendMessage(Minecraft.getInstance().player, InstalledChatbot.getRegenText(), MessageType.INFO);
 		}
+	}
+
+	private void onClientStopping(ClientStoppingEvent event) {
+		InstalledChatbot.close();
 	}
 }
