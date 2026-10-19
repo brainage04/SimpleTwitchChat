@@ -7,3 +7,5 @@ The Twitch credentials live only in memory for one Minecraft client session. Res
 The unit tests use Twitch boundary doubles, not a live account. They exercise the real session and bot logic for cancellation, shutdown, connection failures and message delivery. The Fabric client GameTest exercises the registered chat command in a dedicated-server connection.
 
 Run builds and GameTests through `heavy`, with `./gradlew --no-daemon build runAllGameTests -Pfabricmoddingconventions.devClientOptions=/nonexistent`. A live Twitch login and a real NeoForge client shutdown are not covered by that automated suite.
+
+The conventions plugin and reusable workflows are pinned together at 2.4.26, matching the mod template.
