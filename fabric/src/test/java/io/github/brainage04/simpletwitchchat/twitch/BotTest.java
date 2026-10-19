@@ -55,10 +55,11 @@ class BotTest {
     @Test
     void joinsOnAuthorizationBeforeFirstSendAndReceivesMessages() {
         AtomicReference<Consumer<ChannelMessageEvent>> listener = new AtomicReference<>();
+        var eventManager = client.getEventManager();
         doAnswer(invocation -> {
             listener.set(invocation.getArgument(1));
             return null;
-        }).when(client.getEventManager()).onEvent(eq(ChannelMessageEvent.class), any());
+        }).when(eventManager).onEvent(eq(ChannelMessageEvent.class), any());
         start();
         verify(client.getChat()).joinChannel("streamer");
         ChannelMessageEvent event = mock(ChannelMessageEvent.class, RETURNS_DEEP_STUBS);
@@ -99,7 +100,8 @@ class BotTest {
     void sendFailureIsNotEchoedAsSuccess() {
         start();
         when(client.getChat().isChannelJoined("streamer")).thenReturn(true);
-        doThrow(new IllegalStateException("offline")).when(client.getChat())
+        var chat = client.getChat();
+        doThrow(new IllegalStateException("offline")).when(chat)
                 .sendMessage("streamer", "lost");
         assertFalse(bot.sendChatMessage("lost"));
         assertTrue(messages.isEmpty());

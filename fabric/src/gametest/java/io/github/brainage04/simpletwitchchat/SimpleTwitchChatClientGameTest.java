@@ -80,21 +80,21 @@ public final class SimpleTwitchChatClientGameTest implements FabricClientGameTes
 
     private static void assertUnauthorizedDelivery(ClientGameTestContext context) {
         context.runOnClient(client -> {
-            client.gui.getChat().clearMessages(false);
+            client.gui.hud.getChat().clearMessages(false);
             client.player.connection.sendCommand("tc explicit-test-message");
         });
         context.waitTicks(2);
         assertChatContains(context, "Twitch chat is not authorised.");
 
         context.runOnClient(client -> {
-            client.gui.getChat().clearMessages(false);
+            client.gui.hud.getChat().clearMessages(false);
             client.player.connection.sendCommand("tc");
             client.player.connection.sendChat("must-not-reach-minecraft-chat");
         });
         context.waitTicks(10);
         assertChatContains(context, "Twitch chat is not authorised.");
         context.runOnClient(client -> {
-            if (((ChatComponentAccessor) client.gui.getChat()).simpletwitchchat$getMessages()
+            if (((ChatComponentAccessor) client.gui.hud.getChat()).simpletwitchchat$getMessages()
                     .stream().anyMatch(message ->
                             message.content().getString().contains("must-not-reach-minecraft-chat"))) {
                 throw new AssertionError("Twitch-default chat leaked to the Minecraft server.");
@@ -104,7 +104,7 @@ public final class SimpleTwitchChatClientGameTest implements FabricClientGameTes
 
     private static void assertChatContains(ClientGameTestContext context, String expected) {
         context.runOnClient(client -> {
-            if (((ChatComponentAccessor) client.gui.getChat()).simpletwitchchat$getMessages()
+            if (((ChatComponentAccessor) client.gui.hud.getChat()).simpletwitchchat$getMessages()
                     .stream().noneMatch(message -> message.content().getString().contains(expected))) {
                 throw new AssertionError("Missing chat feedback: " + expected);
             }
