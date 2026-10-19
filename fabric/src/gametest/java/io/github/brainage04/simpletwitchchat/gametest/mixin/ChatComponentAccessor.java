@@ -1,4 +1,4 @@
-package io.github.brainage04.simpletwitchchat;
+package io.github.brainage04.simpletwitchchat.gametest.mixin;
 
 import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.client.multiplayer.chat.GuiMessage;
