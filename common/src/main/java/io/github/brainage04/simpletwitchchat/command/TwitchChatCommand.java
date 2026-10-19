@@ -21,7 +21,7 @@ public final class TwitchChatCommand {
 		return 1;
 	}
 
-	public static int execute(LocalPlayer player, String message) {
+	public static int execute(String message) {
 		return InstalledChatbot.sendChatMessage(message) ? 1 : 0;
 	}
 }

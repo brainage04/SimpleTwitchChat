@@ -1,11 +1,11 @@
 # Development
 
-The Twitch credentials live only in memory for one Minecraft client session. Restarting Minecraft requires authorisation again; no access or refresh tokens are written to disk. Persistent credentials need an owner decision about storage and lifetime.
+Use Java 25. Check `heavy status` before starting Gradle, and run Gradle through `heavy` with `--no-daemon`.
 
-`ChatbotSession` owns the current bot and device request. Regenerating closes the old controller and executor before creating another bot. Late responses from an old request cannot connect or change the current authorisation link. Both loaders close the session when the client stops.
+```sh
+heavy --label simpletwitchchat -- ./gradlew --no-daemon build runAllGameTests -Pfabricmoddingconventions.devClientOptions=/nonexistent
+```
 
-The unit tests use Twitch boundary doubles, not a live account. They exercise the real session and bot logic for cancellation, shutdown, connection failures and message delivery. The Fabric client GameTest exercises the registered chat command in a dedicated-server connection.
+`:fabric:test` runs the unit tests. `:fabric:runProductionClientGameTest` runs the client GameTest headlessly through the conventions plugin. NeoForge server GameTests are disabled because this mod is client-only.
 
-Run builds and GameTests through `heavy`, with `./gradlew --no-daemon build runAllGameTests -Pfabricmoddingconventions.devClientOptions=/nonexistent`. A live Twitch login and a real NeoForge client shutdown are not covered by that automated suite.
-
-The conventions plugin and reusable workflows are pinned together at 2.4.26, matching the mod template.
+Pass `-Pfabricmoddingconventions.devClientOptions=/nonexistent` to client runs so they do not import personal launcher options. Keep `fabricmoddingconventions_version` and the reusable-workflow versions in `.github/workflows/` aligned.

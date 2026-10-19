@@ -17,8 +17,6 @@ import java.net.URI;
 public class InstalledChatbot {
     private static final ChatbotSession SESSION = new ChatbotSession(
             Bot::new,
-            task -> Thread.ofPlatform().name("simpletwitchchat-device-authorization")
-                    .daemon(true).start(task),
             InstalledChatbot::sendAuthorizationPrompt,
             () -> sendFeedback("SimpleTwitchChat bot has now been authorised.", MessageType.SUCCESS),
             message -> {
@@ -26,21 +24,18 @@ public class InstalledChatbot {
                 sendFeedback(message, MessageType.ERROR);
             });
 
-    public static URI getActivationUri() {
-        return SESSION.getActivationUri();
-    }
 
-    public static MutableComponent getAuthText() {
+    static MutableComponent getAuthText(URI activationUri) {
         return Component.literal("In order to send messages, you must authorise SimpleTwitchChat bot by clicking ")
                 .append(Component.literal("here")
                         .setStyle(
-                                Style.EMPTY.withClickEvent(new ClickEvent.OpenUrl(InstalledChatbot.getActivationUri()))
+                                Style.EMPTY.withClickEvent(new ClickEvent.OpenUrl(activationUri))
                                         .withHoverEvent(new HoverEvent.ShowText(Component.literal("Opens the URL to authorise SimpleTwitchChat bot in your default browser when clicked."))))
                         .withStyle(ChatFormatting.UNDERLINE))
                 .append(".");
     }
 
-    public static MutableComponent getRegenText() {
+    private static MutableComponent getRegenText() {
         return Component.literal("\"")
                 .append(Component.literal("INCORRECT CODE!").withStyle(ChatFormatting.RED))
                 .append("\"? Request a new one by clicking ")
@@ -55,14 +50,15 @@ public class InstalledChatbot {
         SESSION.initialize();
     }
 
-    private static void sendAuthorizationPrompt() {
+    public static void sendAuthorizationPrompt() {
         Minecraft client = Minecraft.getInstance();
         client.execute(() -> {
             LocalPlayer player = client.player;
-            if (player == null || getActivationUri() == null) {
+            URI activationUri = SESSION.getActivationUri();
+            if (player == null || activationUri == null) {
                 return;
             }
-            FeedbackUtils.sendMessage(player, getAuthText(), MessageType.INFO);
+            FeedbackUtils.sendMessage(player, getAuthText(activationUri), MessageType.INFO);
             FeedbackUtils.sendMessage(player, getRegenText(), MessageType.INFO);
         });
     }

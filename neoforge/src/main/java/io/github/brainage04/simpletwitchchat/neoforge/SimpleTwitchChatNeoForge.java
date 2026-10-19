@@ -5,8 +5,6 @@ import io.github.brainage04.simpletwitchchat.SimpleTwitchChat;
 import io.github.brainage04.simpletwitchchat.command.TwitchChatCommand;
 import io.github.brainage04.simpletwitchchat.command.admin.RegenerateAuthUrlCommand;
 import io.github.brainage04.simpletwitchchat.twitch.InstalledChatbot;
-import io.github.brainage04.simpletwitchchat.util.feedback.FeedbackUtils;
-import io.github.brainage04.simpletwitchchat.util.feedback.MessageType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.Commands;
 import net.neoforged.api.distmarker.Dist;
@@ -28,14 +26,11 @@ public final class SimpleTwitchChatNeoForge {
 
 	private void registerCommands(RegisterClientCommandsEvent event) {
 		event.getDispatcher().register(Commands.literal("regenerateauthurl").executes(context -> RegenerateAuthUrlCommand.execute(Minecraft.getInstance().player)));
-		event.getDispatcher().register(Commands.literal("tc").executes(context -> TwitchChatCommand.execute(Minecraft.getInstance().player)).then(Commands.argument("message", StringArgumentType.greedyString()).executes(context -> TwitchChatCommand.execute(Minecraft.getInstance().player, StringArgumentType.getString(context, "message")))));
+		event.getDispatcher().register(Commands.literal("tc").executes(context -> TwitchChatCommand.execute(Minecraft.getInstance().player)).then(Commands.argument("message", StringArgumentType.greedyString()).executes(context -> TwitchChatCommand.execute(StringArgumentType.getString(context, "message")))));
 	}
 
 	private void onPlayerLogin(ClientPlayerNetworkEvent.LoggingIn event) {
-		if (Minecraft.getInstance().player != null && InstalledChatbot.getActivationUri() != null) {
-			FeedbackUtils.sendMessage(Minecraft.getInstance().player, InstalledChatbot.getAuthText(), MessageType.INFO);
-			FeedbackUtils.sendMessage(Minecraft.getInstance().player, InstalledChatbot.getRegenText(), MessageType.INFO);
-		}
+		InstalledChatbot.sendAuthorizationPrompt();
 	}
 
 	private void onClientStopping(ClientStoppingEvent event) {

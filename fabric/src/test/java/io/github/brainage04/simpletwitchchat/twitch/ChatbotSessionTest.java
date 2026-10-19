@@ -2,11 +2,14 @@ package io.github.brainage04.simpletwitchchat.twitch;
 
 import com.github.philippheuer.credentialmanager.domain.OAuth2Credential;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 
 import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -14,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -27,10 +31,20 @@ class ChatbotSessionTest {
     private final ArrayDeque<Bot> bots = new ArrayDeque<>(List.of(first, second));
     private final ArrayDeque<Runnable> jobs = new ArrayDeque<>();
     private final List<String> events = new ArrayList<>();
-    private final ChatbotSession session = new ChatbotSession(bots::remove, jobs::add,
+    private final ChatbotSession session = new ChatbotSession(bots::remove,
             () -> events.add("prompt"), () -> events.add("authorized"), events::add);
     private Consumer<OAuth2Credential> success;
     private Consumer<String> failure;
+
+    @BeforeEach
+    void scheduleRequests() {
+        for (Bot bot : List.of(first, second)) {
+            doAnswer(invocation -> {
+                jobs.add(invocation.getArgument(0));
+                return null;
+            }).when(bot).executeAuthorization(any());
+        }
+    }
 
     private void request() {
         when(first.authorize(any(), any())).thenAnswer(invocation -> {
@@ -133,5 +147,31 @@ class ChatbotSessionTest {
         verify(first).start(token);
         assertNull(session.getActivationUri());
         assertEquals(List.of("authorized"), events);
+    }
+
+    @Test
+    void shutdownDoesNotHoldSessionMonitorWhileTransportCloses() {
+        request();
+        doAnswer(invocation -> {
+            FutureTask<Void> callback = new FutureTask<>(() -> {
+                success.accept(mock(OAuth2Credential.class));
+                return null;
+            });
+            Thread.ofPlatform().daemon(true).start(callback);
+            callback.get(2, TimeUnit.SECONDS);
+            return null;
+        }).when(first).close();
+        session.close();
+        verify(first, never()).start(any());
+        assertEquals(List.of("prompt"), events);
+    }
+
+    @Test
+    void closeFailureDoesNotPreventReplacementAuthorization() {
+        request();
+        doThrow(new IllegalStateException("close failed")).when(first).close();
+        session.regenerate();
+        assertEquals(1, jobs.size());
+        assertTrue(events.getLast().contains("Could not close Twitch chat"));
     }
 }

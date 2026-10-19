@@ -34,11 +34,12 @@ public class Bot {
     private final Consumer<String> errors;
     private ITwitchClient client;
     private String username;
-    private boolean closed;
+    private volatile boolean closed;
 
     public Bot() {
         this(
                 ThreadUtils.getDefaultScheduledThreadPoolExecutor("t4j-bot", 2),
+                null,
                 null,
                 Bot::appendTwitchMessage,
                 Bot::appendError);
@@ -46,6 +47,7 @@ public class Bot {
 
     Bot(
             ScheduledThreadPoolExecutor executor,
+            DeviceFlowController controller,
             Function<OAuth2Credential, ITwitchClient> clientFactory,
             BiConsumer<String, String> messages,
             Consumer<String> errors) {
@@ -53,11 +55,15 @@ public class Bot {
         this.messages = messages;
         this.errors = errors;
         identityProvider = new TwitchIdentityProvider(CLIENT_ID, null, null);
-        controller = new DeviceFlowController(executor, 0);
+        this.controller = controller != null ? controller : new DeviceFlowController(executor, 0);
         credentialManager =
-                CredentialManagerBuilder.builder().withAuthenticationController(controller).build();
+                CredentialManagerBuilder.builder().withAuthenticationController(this.controller).build();
         credentialManager.registerIdentityProvider(identityProvider);
         this.clientFactory = clientFactory != null ? clientFactory : this::createClient;
+    }
+
+    void executeAuthorization(Runnable task) {
+        executor.execute(task);
     }
 
     public URI authorize(Consumer<OAuth2Credential> authorized, Consumer<String> failed) {
@@ -66,6 +72,10 @@ public class Bot {
                         identityProvider,
                         List.of(TwitchScopes.CHAT_READ, TwitchScopes.CHAT_EDIT),
                         response -> {
+                            // CredentialManager uses null to report a cancelled device flow.
+                            if (response == null) {
+                                return;
+                            }
                             if (response.getCredential() == null) {
                                 failed.accept(
                                         "Twitch authorisation failed. Use /regenerateauthurl to try again.");
@@ -92,11 +102,11 @@ public class Bot {
         if (closed) {
             return;
         }
+        client = clientFactory.apply(credential);
         String account = credential.getUserName();
         if (account == null || account.isBlank()) {
             throw new IllegalArgumentException("Twitch did not provide an account name.");
         }
-        client = clientFactory.apply(credential);
         username = account;
         client.getEventManager()
                 .onEvent(
@@ -105,7 +115,7 @@ public class Bot {
         client.getChat().joinChannel(username);
     }
 
-    synchronized void receiveMessage(String sender, String message) {
+    void receiveMessage(String sender, String message) {
         if (!closed) {
             messages.accept(sender, message);
         }
@@ -130,20 +140,27 @@ public class Bot {
         }
     }
 
-    public synchronized void close() {
-        if (closed) {
-            return;
+    public void close() {
+        ITwitchClient previous;
+        synchronized (this) {
+            if (closed) {
+                return;
+            }
+            closed = true;
+            username = null;
+            previous = client;
+            client = null;
         }
-        closed = true;
-        username = null;
         try {
-            if (client != null) {
-                client.close();
+            if (previous != null) {
+                previous.close();
             }
         } finally {
-            client = null;
-            controller.close();
-            executor.shutdownNow();
+            try {
+                controller.close();
+            } finally {
+                executor.shutdownNow();
+            }
         }
     }
 

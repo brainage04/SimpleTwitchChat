@@ -33,7 +33,6 @@ No known incompatibilities.
 
 ## Documentation
 
-- [Development](docs/DEVELOPMENT.md) - authorisation lifetime, lifecycle and test commands.
+- [Development](docs/DEVELOPMENT.md) - build and test commands.
 - [Releases](docs/RELEASE.md) - release procedure.
 - [Modrinth publishing](docs/MODRINTH.md) - publishing configuration.
-- [Test review](docs/TESTS.md) - frozen pruning rubric and coverage.
