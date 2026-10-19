@@ -117,4 +117,21 @@ class ChatbotSessionTest {
         assertFalse(events.contains("authorized"));
         assertTrue(events.getLast().contains("Could not connect to Twitch chat"));
     }
+    @Test
+    void completionBeforeRequestReturnsDoesNotPublishAnExpiredLink() {
+        OAuth2Credential token = mock(OAuth2Credential.class);
+        when(first.authorize(any(), any())).thenAnswer(invocation -> {
+            Consumer<OAuth2Credential> callback = invocation.getArgument(0);
+            callback.accept(token);
+            callback.accept(token);
+            return URI_ONE;
+        });
+        session.initialize();
+        session.initialize();
+        assertEquals(1, jobs.size());
+        jobs.remove().run();
+        verify(first).start(token);
+        assertNull(session.getActivationUri());
+        assertEquals(List.of("authorized"), events);
+    }
 }

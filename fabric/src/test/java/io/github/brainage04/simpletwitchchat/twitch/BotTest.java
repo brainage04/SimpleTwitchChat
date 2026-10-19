@@ -2,17 +2,23 @@ package io.github.brainage04.simpletwitchchat.twitch;
 
 import com.github.philippheuer.credentialmanager.domain.OAuth2Credential;
 import com.github.twitch4j.ITwitchClient;
+import com.github.twitch4j.chat.events.channel.ChannelMessageEvent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -41,9 +47,17 @@ class BotTest {
 
     @Test
     void joinsOnAuthorizationBeforeFirstSendAndReceivesMessages() {
+        AtomicReference<Consumer<ChannelMessageEvent>> listener = new AtomicReference<>();
+        doAnswer(invocation -> {
+            listener.set(invocation.getArgument(1));
+            return null;
+        }).when(client.getEventManager()).onEvent(eq(ChannelMessageEvent.class), any());
         start();
         verify(client.getChat()).joinChannel("streamer");
-        bot.receiveMessage("viewer", "hello");
+        ChannelMessageEvent event = mock(ChannelMessageEvent.class, RETURNS_DEEP_STUBS);
+        when(event.getUser().getName()).thenReturn("viewer");
+        when(event.getMessage()).thenReturn("hello");
+        listener.get().accept(event);
         assertEquals(List.of("viewer: hello"), messages);
     }
 

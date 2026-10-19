@@ -14,6 +14,7 @@ import java.util.Properties;
 public final class SimpleTwitchChatClientGameTest implements FabricClientGameTest {
     @Override
     public void runTest(ClientGameTestContext context) {
+        InstalledChatbot.close();
         Properties serverProperties = ClientGameTestServers.flatServerProperties();
 
         ClientGameTestServers.withDedicatedServer(
@@ -44,6 +45,8 @@ public final class SimpleTwitchChatClientGameTest implements FabricClientGameTes
                                 false
                         );
                         context.waitTicks(50);
+
+                        assertUnauthorizedDelivery(context);
                     } finally {
                         InstalledChatbot.close();
                         context.runOnClient(client -> {
@@ -69,6 +72,42 @@ public final class SimpleTwitchChatClientGameTest implements FabricClientGameTes
             }
             client.setScreenAndShow(new ChatScreen("", false));
         });
+        context.waitTicks(2);
+        assertChatContains(context, "Chat messages will now be sent through "
+                + (expectedTwitchDefault ? "Twitch" : "Minecraft") + " chat by default.");
         ClientGameTestRecorder.showStep(context, stepId, title, description);
+    }
+
+    private static void assertUnauthorizedDelivery(ClientGameTestContext context) {
+        context.runOnClient(client -> {
+            client.gui.getChat().clearMessages(false);
+            client.player.connection.sendCommand("tc explicit-test-message");
+        });
+        context.waitTicks(2);
+        assertChatContains(context, "Twitch chat is not authorised.");
+
+        context.runOnClient(client -> {
+            client.gui.getChat().clearMessages(false);
+            client.player.connection.sendCommand("tc");
+            client.player.connection.sendChat("must-not-reach-minecraft-chat");
+        });
+        context.waitTicks(10);
+        assertChatContains(context, "Twitch chat is not authorised.");
+        context.runOnClient(client -> {
+            if (((ChatComponentAccessor) client.gui.getChat()).simpletwitchchat$getMessages()
+                    .stream().anyMatch(message ->
+                            message.content().getString().contains("must-not-reach-minecraft-chat"))) {
+                throw new AssertionError("Twitch-default chat leaked to the Minecraft server.");
+            }
+        });
+    }
+
+    private static void assertChatContains(ClientGameTestContext context, String expected) {
+        context.runOnClient(client -> {
+            if (((ChatComponentAccessor) client.gui.getChat()).simpletwitchchat$getMessages()
+                    .stream().noneMatch(message -> message.content().getString().contains(expected))) {
+                throw new AssertionError("Missing chat feedback: " + expected);
+            }
+        });
     }
 }

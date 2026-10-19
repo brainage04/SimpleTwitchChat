@@ -27,3 +27,11 @@ All existing tests are kept:
 - `BotTest.unauthorizedMessagesAreRejected`: sending before authorization.
 - `BotTest.sendFailureIsNotEchoedAsSuccess`: transport failure after a successful channel join.
 - `BotTest.closingStopsExecutorAndIgnoresLateMessages`: transport cleanup and late incoming messages.
+
+## Coverage gaps and additions
+
+The pruning inventory had no assertion on actual command feedback, unauthorised explicit sends or the default-chat redirect mixin. The client test now reads the real chat history, checks both toggle messages, checks `/tc <message>` without authorisation and checks that default-Twitch chat reports an error without leaking the message to the Minecraft server.
+
+The incoming-message test now invokes the actual Twitch event callback registered by the bot. A new keep test, `completionBeforeRequestReturnsDoesNotPublishAnExpiredLink`, covers an immediate OAuth response, duplicate callbacks and repeated initialization.
+
+Still outside automation: the real Twitch device page and token exchange, Twitch's IRC reconnect timing, and NeoForge client startup and orderly shutdown. The shared lifecycle state machine is unit-tested, but the NeoForge hook is compiled rather than exercised by a NeoForge client suite. There are no gamerules, configuration screens or custom rendering in this mod.
