@@ -4,10 +4,10 @@ import com.github.philippheuer.credentialmanager.CredentialManager;
 import com.github.philippheuer.credentialmanager.CredentialManagerBuilder;
 import com.github.philippheuer.credentialmanager.authcontroller.DeviceFlowController;
 import com.github.philippheuer.credentialmanager.domain.OAuth2Credential;
-import com.github.twitch4j.ITwitchClient;
-import com.github.twitch4j.TwitchClientBuilder;
 import com.github.twitch4j.auth.domain.TwitchScopes;
 import com.github.twitch4j.auth.providers.TwitchIdentityProvider;
+import com.github.twitch4j.chat.TwitchChat;
+import com.github.twitch4j.chat.TwitchChatBuilder;
 import com.github.twitch4j.chat.events.channel.ChannelMessageEvent;
 import com.github.twitch4j.client.websocket.domain.WebsocketConnectionState;
 import com.github.twitch4j.common.util.ThreadUtils;
@@ -31,10 +31,10 @@ public class Bot {
     private final ScheduledThreadPoolExecutor executor;
     private final DeviceFlowController controller;
     private final CredentialManager credentialManager;
-    private final Function<OAuth2Credential, ITwitchClient> clientFactory;
+    private final Function<OAuth2Credential, TwitchChat> clientFactory;
     private final BiConsumer<String, String> messages;
     private final Consumer<String> errors;
-    private ITwitchClient client;
+    private TwitchChat client;
     private String username;
     private volatile boolean closed;
 
@@ -50,7 +50,7 @@ public class Bot {
     Bot(
             ScheduledThreadPoolExecutor executor,
             DeviceFlowController controller,
-            Function<OAuth2Credential, ITwitchClient> clientFactory,
+            Function<OAuth2Credential, TwitchChat> clientFactory,
             BiConsumer<String, String> messages,
             Consumer<String> errors) {
         this.executor = executor;
@@ -88,15 +88,12 @@ public class Bot {
         return URI.create(request.getCompleteUri());
     }
 
-    private ITwitchClient createClient(OAuth2Credential credential) {
-        return TwitchClientBuilder.builder()
+    private TwitchChat createClient(OAuth2Credential credential) {
+        return TwitchChatBuilder.builder()
                 .withClientId(CLIENT_ID)
                 .withScheduledThreadPoolExecutor(executor)
                 .withCredentialManager(credentialManager)
-                .withEnableChat(true)
                 .withChatAccount(credential)
-                .withEnableHelix(true)
-                .withDefaultAuthToken(credential)
                 .build();
     }
 
@@ -114,7 +111,7 @@ public class Bot {
                 .onEvent(
                         ChannelMessageEvent.class,
                         event -> receiveMessage(event.getUser().getName(), event.getMessage()));
-        client.getChat().joinChannel(username);
+        client.joinChannel(username);
     }
 
     void receiveMessage(String sender, String message) {
@@ -128,13 +125,13 @@ public class Bot {
             errors.accept(NOT_AUTHORISED);
             return false;
         }
-        if (client.getChat().getState() != WebsocketConnectionState.CONNECTED
-                || !client.getChat().isChannelJoined(username)) {
+        if (client.getState() != WebsocketConnectionState.CONNECTED
+                || !client.isChannelJoined(username)) {
             errors.accept("Twitch chat is not connected yet. Please try again shortly.");
             return false;
         }
         try {
-            client.getChat().sendMessage(username, message);
+            client.sendMessage(username, message);
             messages.accept(username, message);
             return true;
         } catch (RuntimeException exception) {
@@ -144,7 +141,7 @@ public class Bot {
     }
 
     public void close() {
-        ITwitchClient previous;
+        TwitchChat previous;
         synchronized (this) {
             if (closed) {
                 return;

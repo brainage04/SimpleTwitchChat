@@ -4,7 +4,7 @@ import com.github.philippheuer.credentialmanager.domain.OAuth2Credential;
 import com.github.philippheuer.credentialmanager.authcontroller.DeviceFlowController;
 import com.github.philippheuer.credentialmanager.domain.DeviceAuthorization;
 import com.github.philippheuer.credentialmanager.domain.DeviceTokenResponse;
-import com.github.twitch4j.ITwitchClient;
+import com.github.twitch4j.chat.TwitchChat;
 import com.github.twitch4j.chat.events.channel.ChannelMessageEvent;
 import com.github.twitch4j.client.websocket.domain.WebsocketConnectionState;
 import org.junit.jupiter.api.AfterEach;
@@ -37,7 +37,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class BotTest {
-    private final ITwitchClient client = mock(ITwitchClient.class, RETURNS_DEEP_STUBS);
+    private final TwitchChat client = mock(TwitchChat.class, RETURNS_DEEP_STUBS);
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
     private final List<String> messages = new ArrayList<>();
     private final List<String> errors = new ArrayList<>();
@@ -48,7 +48,7 @@ class BotTest {
         OAuth2Credential token = mock(OAuth2Credential.class);
         when(token.getUserName()).thenReturn("streamer");
         bot.start(token);
-        when(client.getChat().getState()).thenReturn(WebsocketConnectionState.CONNECTED);
+        when(client.getState()).thenReturn(WebsocketConnectionState.CONNECTED);
     }
 
     @AfterEach
@@ -65,7 +65,7 @@ class BotTest {
             return null;
         }).when(eventManager).onEvent(eq(ChannelMessageEvent.class), any());
         start();
-        verify(client.getChat()).joinChannel("streamer");
+        verify(client).joinChannel("streamer");
         ChannelMessageEvent event = mock(ChannelMessageEvent.class, RETURNS_DEEP_STUBS);
         when(event.getUser().getName()).thenReturn("viewer");
         when(event.getMessage()).thenReturn("hello");
@@ -76,10 +76,10 @@ class BotTest {
     @Test
     void sendsAndEchoesOneMessageWithoutRejoining() {
         start();
-        when(client.getChat().isChannelJoined("streamer")).thenReturn(true);
+        when(client.isChannelJoined("streamer")).thenReturn(true);
         assertTrue(bot.sendChatMessage("hello"));
-        verify(client.getChat()).sendMessage("streamer", "hello");
-        verify(client.getChat()).joinChannel("streamer");
+        verify(client).sendMessage("streamer", "hello");
+        verify(client).joinChannel("streamer");
         assertEquals(List.of("streamer: hello"), messages);
         assertTrue(errors.isEmpty());
     }
@@ -88,10 +88,10 @@ class BotTest {
     @EnumSource(value = WebsocketConnectionState.class, names = {"DISCONNECTED", "RECONNECTING", "LOST"})
     void disconnectedMessagesAreRejectedAndNotEchoed(WebsocketConnectionState state) {
         start();
-        when(client.getChat().isChannelJoined("streamer")).thenReturn(true);
-        when(client.getChat().getState()).thenReturn(state);
+        when(client.isChannelJoined("streamer")).thenReturn(true);
+        when(client.getState()).thenReturn(state);
         assertFalse(bot.sendChatMessage("lost"));
-        verify(client.getChat(), never()).sendMessage("streamer", "lost");
+        verify(client, never()).sendMessage("streamer", "lost");
         assertTrue(messages.isEmpty());
         assertTrue(errors.getFirst().contains("not connected"));
     }
@@ -99,9 +99,9 @@ class BotTest {
     @Test
     void connectedButUnjoinedMessagesAreRejectedAndNotEchoed() {
         start();
-        when(client.getChat().isChannelJoined("streamer")).thenReturn(false);
+        when(client.isChannelJoined("streamer")).thenReturn(false);
         assertFalse(bot.sendChatMessage("lost"));
-        verify(client.getChat(), never()).sendMessage("streamer", "lost");
+        verify(client, never()).sendMessage("streamer", "lost");
         assertTrue(messages.isEmpty());
         assertTrue(errors.getFirst().contains("not connected"));
     }
@@ -116,9 +116,8 @@ class BotTest {
     @Test
     void sendFailureIsNotEchoedAsSuccess() {
         start();
-        when(client.getChat().isChannelJoined("streamer")).thenReturn(true);
-        var chat = client.getChat();
-        doThrow(new IllegalStateException("offline")).when(chat)
+        when(client.isChannelJoined("streamer")).thenReturn(true);
+        doThrow(new IllegalStateException("offline")).when(client)
                 .sendMessage("streamer", "lost");
         assertFalse(bot.sendChatMessage("lost"));
         assertTrue(messages.isEmpty());
@@ -191,7 +190,7 @@ class BotTest {
             return client;
         }, (sender, message) -> messages.add(message), errors::add);
         controlled.start(token);
-        verify(client.getChat()).joinChannel("streamer");
+        verify(client).joinChannel("streamer");
         controlled.close();
     }
 
