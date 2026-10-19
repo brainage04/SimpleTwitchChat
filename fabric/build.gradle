@@ -8,8 +8,6 @@ configurations {
 	}
 }
 
-clientGameTestRecorder { guiScale.set('3') }
-
 
 dependencies {
 	twitchLibraries "com.github.twitch4j:twitch4j:${rootProject.twitch4j_version}"

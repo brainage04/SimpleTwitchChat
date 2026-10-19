@@ -1,6 +1,6 @@
 # Modrinth publishing
 
-Modrinth publishing is performed by the reusable `release.yml` workflows from FabricModdingConventions. The release workflow publishes the exact release artifact prepared from a matching `v<mod_version>` tag.
+Modrinth publishing is performed by the reusable `release.yml` workflows from MinecraftModConventions. The release workflow publishes the exact release artifact prepared from a matching `v<mod_version>` tag.
 
 ## Required configuration
 

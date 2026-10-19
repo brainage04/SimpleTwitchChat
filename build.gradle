@@ -1,5 +1,5 @@
 plugins {
-	id 'io.github.brainage04.multiloader-mod-conventions' version "${fabricmoddingconventions_version}"
+	id 'io.github.brainage04.multiloader-mod-conventions' version "${minecraftmodconventions_version}"
 }
 
 multiLoaderModConventions {
