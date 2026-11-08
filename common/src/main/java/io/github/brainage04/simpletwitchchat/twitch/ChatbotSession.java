@@ -6,7 +6,6 @@ import java.net.URI;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Owns one device request and its chat connection for the lifetime of the client. */
 final class ChatbotSession {
     private final Supplier<Bot> bots;
     private final Runnable prompt;
