@@ -2,7 +2,7 @@
 
 SimpleTwitchChat is a mod that connects your Twitch and Minecraft chats.
 
-SimpleTwitchChat is available for both Fabric and NeoForge on Minecraft 26.2; it is client-only on both loaders.
+SimpleTwitchChat is available for both Fabric and NeoForge on Minecraft 26.3; it is client-only on both loaders.
 
 Each time you launch Minecraft, authorise the SimpleTwitchChat bot when prompted in chat; without that authorisation you cannot send or view messages in your Twitch chat. Once a message in your Minecraft chat confirms the bot is authorised, you can view and send Twitch chat messages from Minecraft.
 
@@ -14,8 +14,8 @@ Each time you launch Minecraft, authorise the SimpleTwitchChat bot when prompted
 
 ## Getting started
 
-- Minecraft 26.2 and Java 25.
-- Fabric Loader 0.19.3 or newer with Fabric API, or NeoForge 26.2.0.88 or newer.
+- Minecraft 26.3 and Java 25.
+- Fabric Loader 0.19.5 or newer with Fabric API, or NeoForge 26.3.0.99 or newer.
 - Install the matching JAR on the client only.
 
 ## Commands
