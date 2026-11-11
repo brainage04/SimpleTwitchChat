@@ -1,6 +1,6 @@
 # SimpleTwitchChat icon
 
-## What this is
+## The icon file
 
 `docs/icon/icon.png` is the mod's icon: 1024x1024 PNG, 8-bit RGBA (opaque), non-interlaced,
 1,144,115 bytes, sha256

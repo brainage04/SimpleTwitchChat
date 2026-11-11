@@ -4,12 +4,12 @@ SimpleTwitchChat is a mod that connects your Twitch and Minecraft chats.
 
 SimpleTwitchChat is available for both Fabric and NeoForge on Minecraft 26.2; it is client-only on both loaders.
 
-Each time you launch Minecraft, authorise the SimpleTwitchChat bot when prompted in chat. This is required to send and view messages in your Twitch chat. Once a message has been sent in your Minecraft chat confirming the bot has been authorised, you will be able to view and send Twitch chat messages from Minecraft!
+Each time you launch Minecraft, authorise the SimpleTwitchChat bot when prompted in chat; without that authorisation you cannot send or view messages in your Twitch chat. Once a message in your Minecraft chat confirms the bot is authorised, you can view and send Twitch chat messages from Minecraft.
 
 ## Features
 
-- Your Twitch chat messages will appear in your Minecraft chat.
-- Your Minecraft chat messages will appear in your Twitch chat when using `/tc <message>` or `/tc` to toggle between sending messages in Minecraft chat or Twitch chat by default.
+- Your Twitch chat messages appear in your Minecraft chat.
+- Your Minecraft chat messages appear in your Twitch chat when you use `/tc <message>`. `/tc` on its own switches the default between sending in Minecraft chat and sending in Twitch chat.
 - Messages sent while Twitch is disconnected are rejected.
 
 ## Getting started
