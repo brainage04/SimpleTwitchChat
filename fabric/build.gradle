@@ -1,3 +1,7 @@
+plugins {
+	id 'info.solidsoft.pitest' version '1.19.0'
+}
+
 configurations {
 	twitchLibraries {
 		canBeResolved = true
@@ -27,4 +31,23 @@ productionGameTests {
 	runtimeLibraryDependencies.set(configurations.twitchLibraries.resolvedConfiguration.resolvedArtifacts.collect {
 		"${it.moduleVersion.id.group}:${it.name}:${it.moduleVersion.id.version}"
 	})
+}
+
+pitest {
+	pitestVersion = '1.30.2'
+	junit5PluginVersion = '1.2.3'
+	targetClasses = ['io.github.brainage04.simpletwitchchat.twitch.ChatbotSession']
+	targetTests = ['io.github.brainage04.simpletwitchchat.twitch.ChatbotSessionTest']
+	additionalMutableCodePaths = project(':common').sourceSets.main.output.classesDirs.files
+	threads = 1
+	timeoutConstInMillis = 5000
+	outputFormats = ['HTML', 'XML']
+	timestampedReports = false
+}
+tasks.named('pitest') {
+	dependsOn ':common:classes'
+	// With fabric-loader-junit on the classpath, the tests run but PIT records no coverage (0 of 90 lines),
+	// so every mutant counts as uncovered. ChatbotSessionTest does not need the Fabric loader.
+	def classpath = files(additionalClasspath.from.toList())
+	additionalClasspath.setFrom(classpath.filter { !it.name.startsWith('fabric-loader-junit') })
 }
