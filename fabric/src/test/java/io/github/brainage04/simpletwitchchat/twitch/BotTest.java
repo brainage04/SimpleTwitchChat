@@ -618,7 +618,8 @@ class BotTest {
         when(nextClient.getState()).thenReturn(WebsocketConnectionState.CONNECTED);
         when(nextClient.isChannelJoined("streamer")).thenReturn(true);
         when(nextClient.sendMessage(any(), any())).thenReturn(true);
-        ScheduledThreadPoolExecutor nextExecutor = Bot.newExecutor();
+        // One thread runs the start-up login check before the empty task below.
+        ScheduledThreadPoolExecutor nextExecutor = new ScheduledThreadPoolExecutor(1);
         Bot next =
                 new Bot(
                         nextExecutor,
