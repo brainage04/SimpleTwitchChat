@@ -1,17 +1,5 @@
 package io.github.brainage04.simpletwitchchat.twitch;
 
-import com.github.philippheuer.credentialmanager.domain.OAuth2Credential;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.BeforeEach;
-
-import java.net.URI;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -24,6 +12,17 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.github.philippheuer.credentialmanager.domain.OAuth2Credential;
+import java.net.URI;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
 class ChatbotSessionTest {
     private static final URI URI_ONE = URI.create("https://id.twitch.tv/activate?code=one");
     private final Bot first = mock(Bot.class);
@@ -31,27 +30,36 @@ class ChatbotSessionTest {
     private final ArrayDeque<Bot> bots = new ArrayDeque<>(List.of(first, second));
     private final ArrayDeque<Runnable> jobs = new ArrayDeque<>();
     private final List<String> events = new ArrayList<>();
-    private final ChatbotSession session = new ChatbotSession(bots::remove,
-            () -> events.add("prompt"), () -> events.add("authorized"), events::add);
+    private final ChatbotSession session =
+            new ChatbotSession(
+                    bots::remove,
+                    () -> events.add("prompt"),
+                    () -> events.add("authorized"),
+                    events::add);
     private Consumer<OAuth2Credential> success;
     private Consumer<String> failure;
 
     @BeforeEach
     void scheduleRequests() {
         for (Bot bot : List.of(first, second)) {
-            doAnswer(invocation -> {
-                jobs.add(invocation.getArgument(0));
-                return null;
-            }).when(bot).executeAuthorization(any());
+            doAnswer(
+                            invocation -> {
+                                jobs.add(invocation.getArgument(0));
+                                return null;
+                            })
+                    .when(bot)
+                    .executeAuthorization(any());
         }
     }
 
     private void request() {
-        when(first.authorize(any(), any())).thenAnswer(invocation -> {
-            success = invocation.getArgument(0);
-            failure = invocation.getArgument(1);
-            return URI_ONE;
-        });
+        when(first.authorize(any(), any()))
+                .thenAnswer(
+                        invocation -> {
+                            success = invocation.getArgument(0);
+                            failure = invocation.getArgument(1);
+                            return URI_ONE;
+                        });
         session.initialize();
         jobs.remove().run();
     }
@@ -131,15 +139,18 @@ class ChatbotSessionTest {
         assertFalse(events.contains("authorized"));
         assertTrue(events.getLast().contains("Could not connect to Twitch chat"));
     }
+
     @Test
     void completionBeforeRequestReturnsDoesNotPublishAnExpiredLink() {
         OAuth2Credential token = mock(OAuth2Credential.class);
-        when(first.authorize(any(), any())).thenAnswer(invocation -> {
-            Consumer<OAuth2Credential> callback = invocation.getArgument(0);
-            callback.accept(token);
-            callback.accept(token);
-            return URI_ONE;
-        });
+        when(first.authorize(any(), any()))
+                .thenAnswer(
+                        invocation -> {
+                            Consumer<OAuth2Credential> callback = invocation.getArgument(0);
+                            callback.accept(token);
+                            callback.accept(token);
+                            return URI_ONE;
+                        });
         session.initialize();
         session.initialize();
         assertEquals(1, jobs.size());
@@ -152,15 +163,20 @@ class ChatbotSessionTest {
     @Test
     void shutdownDoesNotHoldSessionMonitorWhileTransportCloses() {
         request();
-        doAnswer(invocation -> {
-            FutureTask<Void> callback = new FutureTask<>(() -> {
-                success.accept(mock(OAuth2Credential.class));
-                return null;
-            });
-            Thread.ofPlatform().daemon(true).start(callback);
-            callback.get(2, TimeUnit.SECONDS);
-            return null;
-        }).when(first).close();
+        doAnswer(
+                        invocation -> {
+                            FutureTask<Void> callback =
+                                    new FutureTask<>(
+                                            () -> {
+                                                success.accept(mock(OAuth2Credential.class));
+                                                return null;
+                                            });
+                            Thread.ofPlatform().daemon(true).start(callback);
+                            callback.get(2, TimeUnit.SECONDS);
+                            return null;
+                        })
+                .when(first)
+                .close();
         session.close();
         verify(first, never()).start(any());
         assertEquals(List.of("prompt"), events);

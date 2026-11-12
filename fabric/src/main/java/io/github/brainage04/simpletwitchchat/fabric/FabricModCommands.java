@@ -1,21 +1,40 @@
 package io.github.brainage04.simpletwitchchat.fabric;
 
+import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.argument;
+import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.literal;
+
 import com.mojang.brigadier.arguments.StringArgumentType;
 import io.github.brainage04.simpletwitchchat.command.TwitchChatCommand;
 import io.github.brainage04.simpletwitchchat.command.admin.RegenerateAuthUrlCommand;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 
-import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.argument;
-import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.literal;
-
 public final class FabricModCommands {
-	private FabricModCommands() {
-	}
+    private FabricModCommands() {}
 
-	public static void initialize() {
-		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
-			dispatcher.register(literal("regenerateauthurl").executes(context -> RegenerateAuthUrlCommand.execute(context.getSource().getPlayer())));
-			dispatcher.register(literal("tc").executes(context -> TwitchChatCommand.execute(context.getSource().getPlayer())).then(argument("message", StringArgumentType.greedyString()).executes(context -> TwitchChatCommand.execute(StringArgumentType.getString(context, "message")))));
-		});
-	}
+    public static void initialize() {
+        ClientCommandRegistrationCallback.EVENT.register(
+                (dispatcher, registryAccess) -> {
+                    dispatcher.register(
+                            literal("regenerateauthurl")
+                                    .executes(
+                                            context ->
+                                                    RegenerateAuthUrlCommand.execute(
+                                                            context.getSource().getPlayer())));
+                    dispatcher.register(
+                            literal("tc")
+                                    .executes(
+                                            context ->
+                                                    TwitchChatCommand.execute(
+                                                            context.getSource().getPlayer()))
+                                    .then(
+                                            argument("message", StringArgumentType.greedyString())
+                                                    .executes(
+                                                            context ->
+                                                                    TwitchChatCommand.execute(
+                                                                            StringArgumentType
+                                                                                    .getString(
+                                                                                            context,
+                                                                                            "message")))));
+                });
+    }
 }

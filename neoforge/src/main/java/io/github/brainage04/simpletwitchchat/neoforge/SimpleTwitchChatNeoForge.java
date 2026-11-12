@@ -17,24 +17,47 @@ import net.neoforged.neoforge.common.NeoForge;
 
 @Mod(value = SimpleTwitchChat.MOD_ID, dist = Dist.CLIENT)
 public final class SimpleTwitchChatNeoForge {
-	public SimpleTwitchChatNeoForge(IEventBus modEventBus) {
-		SimpleTwitchChat.initialize();
-		NeoForge.EVENT_BUS.addListener(this::registerCommands);
-		NeoForge.EVENT_BUS.addListener(this::onPlayerLogin);
-		NeoForge.EVENT_BUS.addListener(this::onClientStopping);
-	}
+    public SimpleTwitchChatNeoForge(IEventBus modEventBus) {
+        SimpleTwitchChat.initialize();
+        NeoForge.EVENT_BUS.addListener(this::registerCommands);
+        NeoForge.EVENT_BUS.addListener(this::onPlayerLogin);
+        NeoForge.EVENT_BUS.addListener(this::onClientStopping);
+    }
 
-	private void registerCommands(RegisterClientCommandsEvent event) {
-		event.getDispatcher().register(Commands.literal("regenerateauthurl").executes(context -> RegenerateAuthUrlCommand.execute(Minecraft.getInstance().player)));
-		event.getDispatcher().register(Commands.literal("tc").executes(context -> TwitchChatCommand.execute(Minecraft.getInstance().player)).then(Commands.argument("message", StringArgumentType.greedyString()).executes(context -> TwitchChatCommand.execute(StringArgumentType.getString(context, "message")))));
-	}
+    private void registerCommands(RegisterClientCommandsEvent event) {
+        event.getDispatcher()
+                .register(
+                        Commands.literal("regenerateauthurl")
+                                .executes(
+                                        context ->
+                                                RegenerateAuthUrlCommand.execute(
+                                                        Minecraft.getInstance().player)));
+        event.getDispatcher()
+                .register(
+                        Commands.literal("tc")
+                                .executes(
+                                        context ->
+                                                TwitchChatCommand.execute(
+                                                        Minecraft.getInstance().player))
+                                .then(
+                                        Commands.argument(
+                                                        "message",
+                                                        StringArgumentType.greedyString())
+                                                .executes(
+                                                        context ->
+                                                                TwitchChatCommand.execute(
+                                                                        StringArgumentType
+                                                                                .getString(
+                                                                                        context,
+                                                                                        "message")))));
+    }
 
-	private void onPlayerLogin(ClientPlayerNetworkEvent.LoggingIn event) {
-		InstalledChatbot.sendAuthorizationPrompt();
-	}
+    private void onPlayerLogin(ClientPlayerNetworkEvent.LoggingIn event) {
+        InstalledChatbot.sendAuthorizationPrompt();
+    }
 
-	private void onClientStopping(ClientStoppingEvent event) {
-		SimpleTwitchChat.LOGGER.info("NeoForge client stopping: closing Twitch chat.");
-		InstalledChatbot.close();
-	}
+    private void onClientStopping(ClientStoppingEvent event) {
+        SimpleTwitchChat.LOGGER.info("NeoForge client stopping: closing Twitch chat.");
+        InstalledChatbot.close();
+    }
 }

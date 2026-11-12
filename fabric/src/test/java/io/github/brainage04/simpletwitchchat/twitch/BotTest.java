@@ -1,30 +1,9 @@
 package io.github.brainage04.simpletwitchchat.twitch;
 
-import com.github.philippheuer.credentialmanager.domain.OAuth2Credential;
-import com.github.philippheuer.credentialmanager.authcontroller.DeviceFlowController;
-import com.github.philippheuer.credentialmanager.domain.DeviceAuthorization;
-import com.github.philippheuer.credentialmanager.domain.DeviceTokenResponse;
-import com.github.twitch4j.chat.TwitchChat;
-import com.github.twitch4j.chat.events.channel.ChannelMessageEvent;
-import com.github.twitch4j.client.websocket.domain.WebsocketConnectionState;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
-
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
@@ -36,13 +15,38 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.github.philippheuer.credentialmanager.authcontroller.DeviceFlowController;
+import com.github.philippheuer.credentialmanager.domain.DeviceAuthorization;
+import com.github.philippheuer.credentialmanager.domain.DeviceTokenResponse;
+import com.github.philippheuer.credentialmanager.domain.OAuth2Credential;
+import com.github.twitch4j.chat.TwitchChat;
+import com.github.twitch4j.chat.events.channel.ChannelMessageEvent;
+import com.github.twitch4j.client.websocket.domain.WebsocketConnectionState;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+
 class BotTest {
     private final TwitchChat client = mock(TwitchChat.class, RETURNS_DEEP_STUBS);
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
     private final List<String> messages = new ArrayList<>();
     private final List<String> errors = new ArrayList<>();
-    private final Bot bot = new Bot(executor, null, token -> client,
-            (sender, message) -> messages.add(sender + ": " + message), errors::add);
+    private final Bot bot =
+            new Bot(
+                    executor,
+                    null,
+                    token -> client,
+                    (sender, message) -> messages.add(sender + ": " + message),
+                    errors::add);
 
     private void start() {
         OAuth2Credential token = mock(OAuth2Credential.class);
@@ -60,10 +64,13 @@ class BotTest {
     void joinsOnAuthorizationBeforeFirstSendAndReceivesMessages() {
         AtomicReference<Consumer<ChannelMessageEvent>> listener = new AtomicReference<>();
         var eventManager = client.getEventManager();
-        doAnswer(invocation -> {
-            listener.set(invocation.getArgument(1));
-            return null;
-        }).when(eventManager).onEvent(eq(ChannelMessageEvent.class), any());
+        doAnswer(
+                        invocation -> {
+                            listener.set(invocation.getArgument(1));
+                            return null;
+                        })
+                .when(eventManager)
+                .onEvent(eq(ChannelMessageEvent.class), any());
         start();
         verify(client).joinChannel("streamer");
         ChannelMessageEvent event = mock(ChannelMessageEvent.class, RETURNS_DEEP_STUBS);
@@ -85,7 +92,9 @@ class BotTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = WebsocketConnectionState.class, names = {"DISCONNECTED", "RECONNECTING", "LOST"})
+    @EnumSource(
+            value = WebsocketConnectionState.class,
+            names = {"DISCONNECTED", "RECONNECTING", "LOST"})
     void disconnectedMessagesAreRejectedAndNotEchoed(WebsocketConnectionState state) {
         start();
         when(client.isChannelJoined("streamer")).thenReturn(true);
@@ -117,8 +126,7 @@ class BotTest {
     void sendFailureIsNotEchoedAsSuccess() {
         start();
         when(client.isChannelJoined("streamer")).thenReturn(true);
-        doThrow(new IllegalStateException("offline")).when(client)
-                .sendMessage("streamer", "lost");
+        doThrow(new IllegalStateException("offline")).when(client).sendMessage("streamer", "lost");
         assertFalse(bot.sendChatMessage("lost"));
         assertTrue(messages.isEmpty());
         assertTrue(errors.getFirst().contains("Could not send"));
@@ -143,13 +151,20 @@ class BotTest {
         when(request.getCompleteUri()).thenReturn("https://id.twitch.tv/activate?code=test");
         AtomicReference<Consumer<DeviceTokenResponse>> response = new AtomicReference<>();
         when(controller.startOAuth2DeviceAuthorizationGrantType(any(), any(), any()))
-                .thenAnswer(invocation -> {
-                    response.set(invocation.getArgument(2));
-                    return request;
-                });
-        Bot controlled = new Bot(executor, controller, token -> client,
-                (sender, message) -> messages.add(message), errors::add);
-        assertEquals(URI.create(request.getCompleteUri()),
+                .thenAnswer(
+                        invocation -> {
+                            response.set(invocation.getArgument(2));
+                            return request;
+                        });
+        Bot controlled =
+                new Bot(
+                        executor,
+                        controller,
+                        token -> client,
+                        (sender, message) -> messages.add(message),
+                        errors::add);
+        assertEquals(
+                URI.create(request.getCompleteUri()),
                 controlled.authorize(token -> messages.add("authorized"), errors::add));
         controlled.close();
         response.get().accept(null);
@@ -160,15 +175,20 @@ class BotTest {
     @Test
     void closeReleasesMonitorBeforeWaitingForTransportCallbacks() {
         start();
-        doAnswer(invocation -> {
-            FutureTask<Void> callback = new FutureTask<>(() -> {
-                bot.receiveMessage("viewer", "late");
-                return null;
-            });
-            Thread.ofPlatform().daemon(true).start(callback);
-            callback.get(2, TimeUnit.SECONDS);
-            return null;
-        }).when(client).close();
+        doAnswer(
+                        invocation -> {
+                            FutureTask<Void> callback =
+                                    new FutureTask<>(
+                                            () -> {
+                                                bot.receiveMessage("viewer", "late");
+                                                return null;
+                                            });
+                            Thread.ofPlatform().daemon(true).start(callback);
+                            callback.get(2, TimeUnit.SECONDS);
+                            return null;
+                        })
+                .when(client)
+                .close();
         bot.close();
         assertTrue(messages.isEmpty());
         assertTrue(executor.isShutdown());
@@ -185,10 +205,16 @@ class BotTest {
     @Test
     void readsAccountNameAfterClientConstructionEnrichesCredential() {
         OAuth2Credential token = mock(OAuth2Credential.class);
-        Bot controlled = new Bot(executor, null, credential -> {
-            when(credential.getUserName()).thenReturn("streamer");
-            return client;
-        }, (sender, message) -> messages.add(message), errors::add);
+        Bot controlled =
+                new Bot(
+                        executor,
+                        null,
+                        credential -> {
+                            when(credential.getUserName()).thenReturn("streamer");
+                            return client;
+                        },
+                        (sender, message) -> messages.add(message),
+                        errors::add);
         controlled.start(token);
         verify(client).joinChannel("streamer");
         controlled.close();
@@ -197,8 +223,13 @@ class BotTest {
     @Test
     void controllerCloseFailureStillStopsTheExecutor() {
         DeviceFlowController controller = mock(DeviceFlowController.class);
-        Bot controlled = new Bot(executor, controller, token -> client,
-                (sender, message) -> messages.add(message), errors::add);
+        Bot controlled =
+                new Bot(
+                        executor,
+                        controller,
+                        token -> client,
+                        (sender, message) -> messages.add(message),
+                        errors::add);
         doThrow(new IllegalStateException("controller close failed")).when(controller).close();
         assertThrows(IllegalStateException.class, controlled::close);
         assertTrue(executor.isShutdown());

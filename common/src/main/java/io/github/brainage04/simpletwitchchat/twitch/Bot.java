@@ -59,7 +59,9 @@ public class Bot {
         identityProvider = new TwitchIdentityProvider(CLIENT_ID, null, null);
         this.controller = controller != null ? controller : new DeviceFlowController(executor, 0);
         credentialManager =
-                CredentialManagerBuilder.builder().withAuthenticationController(this.controller).build();
+                CredentialManagerBuilder.builder()
+                        .withAuthenticationController(this.controller)
+                        .build();
         credentialManager.registerIdentityProvider(identityProvider);
         this.clientFactory = clientFactory != null ? clientFactory : this::createClient;
     }
@@ -161,7 +163,8 @@ public class Bot {
                 SimpleTwitchChat.LOGGER.info("Twitch device authorisation controller closed.");
             } finally {
                 executor.shutdownNow();
-                SimpleTwitchChat.LOGGER.info("Twitch bot executor shutdown requested: {}.", executor.isShutdown());
+                SimpleTwitchChat.LOGGER.info(
+                        "Twitch bot executor shutdown requested: {}.", executor.isShutdown());
             }
         }
     }

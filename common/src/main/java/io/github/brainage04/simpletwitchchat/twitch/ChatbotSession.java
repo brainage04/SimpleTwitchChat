@@ -1,7 +1,6 @@
 package io.github.brainage04.simpletwitchchat.twitch;
 
 import com.github.philippheuer.credentialmanager.domain.OAuth2Credential;
-
 import java.net.URI;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -15,8 +14,8 @@ final class ChatbotSession {
     private URI activationUri;
     private boolean completed;
 
-    ChatbotSession(Supplier<Bot> bots, Runnable prompt, Runnable authorized,
-            Consumer<String> errors) {
+    ChatbotSession(
+            Supplier<Bot> bots, Runnable prompt, Runnable authorized, Consumer<String> errors) {
         this.bots = bots;
         this.prompt = prompt;
         this.authorized = authorized;
@@ -52,7 +51,9 @@ final class ChatbotSession {
         try {
             requestBot.executeAuthorization(() -> requestAuthorization(requestBot));
         } catch (RuntimeException exception) {
-            fail(requestBot, "Could not start Twitch authorisation. Use /regenerateauthurl to try again.");
+            fail(
+                    requestBot,
+                    "Could not start Twitch authorisation. Use /regenerateauthurl to try again.");
         }
     }
 
@@ -63,8 +64,10 @@ final class ChatbotSession {
             }
         }
         try {
-            URI uri = requestBot.authorize(token -> complete(requestBot, token),
-                    message -> fail(requestBot, message));
+            URI uri =
+                    requestBot.authorize(
+                            token -> complete(requestBot, token),
+                            message -> fail(requestBot, message));
             synchronized (this) {
                 // A response can finish before the initial HTTP request returns.
                 if (bot != requestBot || completed) {
@@ -94,7 +97,9 @@ final class ChatbotSession {
                 }
             }
         } catch (RuntimeException exception) {
-            fail(requestBot, "Could not connect to Twitch chat. Use /regenerateauthurl to try again.");
+            fail(
+                    requestBot,
+                    "Could not connect to Twitch chat. Use /regenerateauthurl to try again.");
         }
     }
 
