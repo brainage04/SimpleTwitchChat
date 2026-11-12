@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -38,6 +39,8 @@ class ChatbotSessionTest {
                     events::add);
     private Consumer<OAuth2Credential> success;
     private Consumer<String> failure;
+    private Runnable connectionLost;
+    private Runnable loginExpired;
 
     @BeforeEach
     void scheduleRequests() {
@@ -49,6 +52,14 @@ class ChatbotSessionTest {
                             })
                     .when(bot)
                     .executeAuthorization(any());
+            doAnswer(
+                            invocation -> {
+                                connectionLost = invocation.getArgument(1);
+                                loginExpired = invocation.getArgument(2);
+                                return null;
+                            })
+                    .when(bot)
+                    .start(any(), any(), any());
         }
     }
 
@@ -70,9 +81,68 @@ class ChatbotSessionTest {
         assertEquals(URI_ONE, session.getActivationUri());
         OAuth2Credential token = mock(OAuth2Credential.class);
         success.accept(token);
-        verify(first).start(token);
+        verify(first).start(eq(token), any(), any());
         assertNull(session.getActivationUri());
         assertEquals(List.of("prompt", "authorized"), events);
+    }
+
+    private void connect() {
+        request();
+        success.accept(mock(OAuth2Credential.class));
+        events.clear();
+    }
+
+    @Test
+    void sendingWhileConnectedGoesThroughTheBot() {
+        connect();
+        when(first.sendChatMessage("hello")).thenReturn(true);
+        when(first.sendChatMessage("rejected")).thenReturn(false);
+        assertTrue(session.sendChatMessage("hello"));
+        assertFalse(session.sendChatMessage("rejected"));
+        assertTrue(events.isEmpty());
+    }
+
+    @Test
+    void expiredLoginIsReportedOnceAndRequestsANewLink() {
+        connect();
+        loginExpired.run();
+        verify(first).close();
+        assertEquals(List.of(ChatbotSession.LOGIN_EXPIRED), events);
+        assertEquals(1, jobs.size());
+        loginExpired.run();
+        assertEquals(1, jobs.size());
+        assertEquals(List.of(ChatbotSession.LOGIN_EXPIRED), events);
+        when(second.authorize(any(), any())).thenReturn(URI_ONE);
+        jobs.remove().run();
+        assertEquals(URI_ONE, session.getActivationUri());
+        assertEquals(List.of(ChatbotSession.LOGIN_EXPIRED, "prompt"), events);
+    }
+
+    @Test
+    void lostConnectionIsReportedAndClosesTheBot() {
+        connect();
+        connectionLost.run();
+        connectionLost.run();
+        verify(first).close();
+        assertEquals(List.of(ChatbotSession.CONNECTION_FAILED), events);
+        assertFalse(session.sendChatMessage("hello"));
+        verify(first, never()).sendChatMessage(any());
+    }
+
+    @Test
+    void connectionThatGivesUpWhileStartingIsNotReportedAsAuthorised() {
+        request();
+        doAnswer(
+                        invocation -> {
+                            Runnable lost = invocation.getArgument(1);
+                            lost.run();
+                            return null;
+                        })
+                .when(first)
+                .start(any(), any(), any());
+        success.accept(mock(OAuth2Credential.class));
+        verify(first).close();
+        assertEquals(List.of("prompt", ChatbotSession.CONNECTION_FAILED), events);
     }
 
     @Test
@@ -82,7 +152,7 @@ class ChatbotSessionTest {
         verify(first).close();
         success.accept(mock(OAuth2Credential.class));
         failure.accept("old failure");
-        verify(first, never()).start(any());
+        verify(first, never()).start(any(), any(), any());
         verify(second, never()).close();
         assertNull(session.getActivationUri());
         assertEquals(List.of("prompt"), events);
@@ -105,7 +175,7 @@ class ChatbotSessionTest {
         session.close();
         success.accept(mock(OAuth2Credential.class));
         verify(first).close();
-        verify(first, never()).start(any());
+        verify(first, never()).start(any(), any(), any());
         assertEquals(List.of("prompt"), events);
     }
 
@@ -133,7 +203,7 @@ class ChatbotSessionTest {
     @Test
     void chatConnectionFailureIsReportedInsteadOfAuthorizationSuccess() {
         request();
-        doThrow(new IllegalStateException("offline")).when(first).start(any());
+        doThrow(new IllegalStateException("offline")).when(first).start(any(), any(), any());
         success.accept(mock(OAuth2Credential.class));
         verify(first).close();
         assertFalse(events.contains("authorized"));
@@ -155,7 +225,7 @@ class ChatbotSessionTest {
         session.initialize();
         assertEquals(1, jobs.size());
         jobs.remove().run();
-        verify(first).start(token);
+        verify(first).start(eq(token), any(), any());
         assertNull(session.getActivationUri());
         assertEquals(List.of("authorized"), events);
     }
@@ -178,7 +248,7 @@ class ChatbotSessionTest {
                 .when(first)
                 .close();
         session.close();
-        verify(first, never()).start(any());
+        verify(first, never()).start(any(), any(), any());
         assertEquals(List.of("prompt"), events);
     }
 

@@ -8,49 +8,66 @@ import com.github.twitch4j.auth.domain.TwitchScopes;
 import com.github.twitch4j.auth.providers.TwitchIdentityProvider;
 import com.github.twitch4j.chat.TwitchChat;
 import com.github.twitch4j.chat.TwitchChatBuilder;
+import com.github.twitch4j.chat.events.ChatConnectionStateEvent;
 import com.github.twitch4j.chat.events.channel.ChannelMessageEvent;
+import com.github.twitch4j.chat.events.channel.ChannelNoticeEvent;
 import com.github.twitch4j.client.websocket.domain.WebsocketConnectionState;
-import com.github.twitch4j.common.util.ThreadUtils;
+import com.github.twitch4j.common.util.ExponentialBackoffStrategy;
+import com.github.twitch4j.util.IBackoffStrategy;
 import io.github.brainage04.simpletwitchchat.SimpleTwitchChat;
 import java.net.URI;
+import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.StringUtil;
 
 public class Bot {
     private static final String CLIENT_ID = "0bw1jo9kaot6nn6utin49if1n6pjj4";
     private static final String NOT_AUTHORISED =
             "You have not authorised the SimpleTwitchChat bot! Please do so before trying to send messages to Twitch chat.";
+    static final String NOT_CONNECTED =
+            "Twitch chat is not connected yet. Please try again shortly.";
+    static final String NOT_SENT = "Could not send your Twitch message. Please try again shortly.";
+    static final int CONNECTION_RETRIES = 8;
+    // Twitch requires apps to validate a user token at start and hourly after that:
+    // https://dev.twitch.tv/docs/authentication/validate-tokens/
+    static final Duration LOGIN_CHECK_PERIOD = Duration.ofHours(1);
 
     private final TwitchIdentityProvider identityProvider;
     private final ScheduledThreadPoolExecutor executor;
     private final DeviceFlowController controller;
     private final CredentialManager credentialManager;
-    private final Function<OAuth2Credential, TwitchChat> clientFactory;
+    private final BiFunction<OAuth2Credential, IBackoffStrategy, TwitchChat> clientFactory;
+    private final Function<OAuth2Credential, Optional<Boolean>> loginCheck;
     private final BiConsumer<String, String> messages;
     private final Consumer<String> errors;
     private TwitchChat client;
     private String username;
+    private OAuth2Credential credential;
+    private Runnable connectionLost;
+    private Runnable loginExpired;
+    private boolean loginConfirmed;
+    private boolean building;
     private volatile boolean closed;
 
     public Bot() {
-        this(
-                ThreadUtils.getDefaultScheduledThreadPoolExecutor("t4j-bot", 2),
-                null,
-                null,
-                Bot::appendTwitchMessage,
-                Bot::appendError);
+        this(newExecutor(), null, null, null, Bot::appendTwitchMessage, Bot::appendError);
     }
 
     Bot(
             ScheduledThreadPoolExecutor executor,
             DeviceFlowController controller,
-            Function<OAuth2Credential, TwitchChat> clientFactory,
+            BiFunction<OAuth2Credential, IBackoffStrategy, TwitchChat> clientFactory,
+            Function<OAuth2Credential, Optional<Boolean>> loginCheck,
             BiConsumer<String, String> messages,
             Consumer<String> errors) {
         this.executor = executor;
@@ -64,6 +81,18 @@ public class Bot {
                         .build();
         credentialManager.registerIdentityProvider(identityProvider);
         this.clientFactory = clientFactory != null ? clientFactory : this::createClient;
+        this.loginCheck = loginCheck != null ? loginCheck : identityProvider::isCredentialValid;
+    }
+
+    // Daemon threads: a connection attempt that is still retrying must not keep the game process
+    // alive after quitting, where the post-main watchdog would end it with a crash report
+    // (Main.java:290).
+    static ScheduledThreadPoolExecutor newExecutor() {
+        ScheduledThreadPoolExecutor executor =
+                new ScheduledThreadPoolExecutor(
+                        2, Thread.ofPlatform().name("t4j-bot-", 0).daemon(true).factory());
+        executor.setRemoveOnCancelPolicy(true);
+        return executor;
     }
 
     void executeAuthorization(Runnable task) {
@@ -90,35 +119,169 @@ public class Bot {
         return URI.create(request.getCompleteUri());
     }
 
-    private TwitchChat createClient(OAuth2Credential credential) {
+    private TwitchChat createClient(OAuth2Credential credential, IBackoffStrategy backoff) {
         return TwitchChatBuilder.builder()
                 .withClientId(CLIENT_ID)
                 .withScheduledThreadPoolExecutor(executor)
                 .withCredentialManager(credentialManager)
                 .withChatAccount(credential)
+                .withConnectionBackoffStrategy(backoff)
                 .build();
     }
 
-    public synchronized void start(OAuth2Credential credential) {
-        if (closed) {
+    static IBackoffStrategy connectionBackoff(Runnable gaveUp) {
+        return new NotifyingBackoff(
+                ExponentialBackoffStrategy.builder().maxRetries(CONNECTION_RETRIES).build(),
+                gaveUp);
+    }
+
+    /**
+     * Connects to Twitch chat on the calling thread, which the connection attempts can block for
+     * minutes, so callers must not be the client thread. The bot's monitor is not held meanwhile.
+     */
+    public void start(OAuth2Credential credential, Runnable connectionLost, Runnable loginExpired) {
+        synchronized (this) {
+            if (closed) {
+                return;
+            }
+            building = true;
+            this.connectionLost = connectionLost;
+            this.loginExpired = loginExpired;
+        }
+        TwitchChat built;
+        try {
+            built = clientFactory.apply(credential, connectionBackoff(this::connectionGaveUp));
+        } catch (RuntimeException exception) {
+            finishBuild();
+            throw exception;
+        }
+        if (!publish(built)) {
+            try {
+                built.close();
+            } finally {
+                executor.shutdownNow();
+            }
             return;
         }
-        client = clientFactory.apply(credential);
         String account = credential.getUserName();
         if (account == null || account.isBlank()) {
             throw new IllegalArgumentException("Twitch did not provide an account name.");
         }
-        username = account;
-        client.getEventManager()
-                .onEvent(
-                        ChannelMessageEvent.class,
-                        event -> receiveMessage(event.getUser().getName(), event.getMessage()));
-        client.joinChannel(username);
+        var events = built.getEventManager();
+        events.onEvent(
+                ChannelMessageEvent.class,
+                event -> receiveMessage(event.getUser().getName(), event.getMessage()));
+        events.onEvent(ChannelNoticeEvent.class, this::receiveNotice);
+        events.onEvent(ChatConnectionStateEvent.class, this::connectionChanged);
+        synchronized (this) {
+            if (closed) {
+                return;
+            }
+            username = account;
+            this.credential = credential;
+            executor.execute(this::checkLogin);
+            long period = LOGIN_CHECK_PERIOD.toMinutes();
+            executor.scheduleAtFixedRate(this::checkLogin, period, period, TimeUnit.MINUTES);
+        }
+        built.joinChannel(account);
+    }
+
+    private void finishBuild() {
+        boolean closedMeanwhile;
+        synchronized (this) {
+            building = false;
+            closedMeanwhile = closed;
+        }
+        if (closedMeanwhile) {
+            executor.shutdownNow();
+        }
+    }
+
+    private synchronized boolean publish(TwitchChat built) {
+        building = false;
+        if (closed) {
+            return false;
+        }
+        client = built;
+        return true;
     }
 
     void receiveMessage(String sender, String message) {
         if (!closed) {
-            messages.accept(sender, message);
+            messages.accept(plainText(sender), plainText(message));
+        }
+    }
+
+    private void receiveNotice(ChannelNoticeEvent event) {
+        String channel;
+        synchronized (this) {
+            channel = username;
+        }
+        if (!closed && channel != null && channel.equalsIgnoreCase(event.getChannel().getName())) {
+            errors.accept("Twitch: " + plainText(event.getMessage()));
+        }
+    }
+
+    private void connectionChanged(ChatConnectionStateEvent event) {
+        if (event.getState() != WebsocketConnectionState.CONNECTED) {
+            return;
+        }
+        synchronized (this) {
+            if (closed || credential == null) {
+                return;
+            }
+            // After failed reconnects twitch4j logs in anonymously when it finds the token
+            // invalid (TwitchChat.java:351-354), so a connection says nothing about the login.
+            loginConfirmed = false;
+            executor.execute(this::checkLogin);
+        }
+    }
+
+    void checkLogin() {
+        OAuth2Credential checked;
+        synchronized (this) {
+            if (closed || credential == null) {
+                return;
+            }
+            checked = credential;
+        }
+        Optional<Boolean> valid;
+        try {
+            valid = loginCheck.apply(checked);
+        } catch (RuntimeException exception) {
+            valid = Optional.empty();
+        }
+        Runnable expired;
+        synchronized (this) {
+            if (closed || credential != checked) {
+                return;
+            }
+            // Empty means Twitch could not be asked (TwitchIdentityProvider.isCredentialValid), so
+            // the next check asks again.
+            if (valid.orElse(true)) {
+                loginConfirmed = true;
+                return;
+            }
+            loginConfirmed = false;
+            expired = loginExpired;
+            loginExpired = null;
+        }
+        if (expired != null) {
+            expired.run();
+        }
+    }
+
+    private void connectionGaveUp() {
+        Runnable lost;
+        synchronized (this) {
+            if (closed || connectionLost == null) {
+                return;
+            }
+            lost = connectionLost;
+            connectionLost = null;
+            // Called from inside WebsocketConnection.connect and its disconnect handler, while
+            // closing the bot closes that same connection.
+            executor.execute(lost);
         }
     }
 
@@ -128,30 +291,39 @@ public class Bot {
             return false;
         }
         if (client.getState() != WebsocketConnectionState.CONNECTED
-                || !client.isChannelJoined(username)) {
-            errors.accept("Twitch chat is not connected yet. Please try again shortly.");
+                || !client.isChannelJoined(username)
+                || !loginConfirmed) {
+            errors.accept(NOT_CONNECTED);
             return false;
         }
         try {
-            client.sendMessage(username, message);
-            messages.accept(username, message);
+            if (!client.sendMessage(username, message)) {
+                errors.accept(NOT_SENT);
+                return false;
+            }
+            messages.accept(plainText(username), plainText(message));
             return true;
         } catch (RuntimeException exception) {
-            errors.accept("Could not send your Twitch message. Please try again shortly.");
+            errors.accept(NOT_SENT);
             return false;
         }
     }
 
     public void close() {
         TwitchChat previous;
+        boolean stopExecutor;
         synchronized (this) {
             if (closed) {
                 return;
             }
             closed = true;
             username = null;
+            credential = null;
             previous = client;
             client = null;
+            // A connection still being built finishes on its own thread, then closes itself
+            // and stops the executor (start).
+            stopExecutor = !building;
         }
         try {
             if (previous != null) {
@@ -162,11 +334,20 @@ public class Bot {
                 controller.close();
                 SimpleTwitchChat.LOGGER.info("Twitch device authorisation controller closed.");
             } finally {
-                executor.shutdownNow();
-                SimpleTwitchChat.LOGGER.info(
-                        "Twitch bot executor shutdown requested: {}.", executor.isShutdown());
+                if (stopExecutor) {
+                    executor.shutdownNow();
+                    SimpleTwitchChat.LOGGER.info(
+                            "Twitch bot executor shutdown requested: {}.", executor.isShutdown());
+                }
             }
         }
+    }
+
+    // The client renders section-sign codes inside literal text (SubStringSource.java:71), and
+    // Twitch text comes from viewers. Vanilla refuses these codes in player chat
+    // (ServerGamePacketListenerImpl.java:1714-1716, StringUtil.java:62-63).
+    static String plainText(String text) {
+        return StringUtil.filterText(ChatFormatting.stripFormatting(text));
     }
 
     private static void appendTwitchMessage(String username, String message) {
@@ -190,5 +371,27 @@ public class Bot {
                         client.player.sendSystemMessage(message);
                     }
                 });
+    }
+
+    private record NotifyingBackoff(IBackoffStrategy delegate, Runnable gaveUp)
+            implements IBackoffStrategy {
+        @Override
+        public long get() {
+            long delay = delegate.get();
+            if (delay < 0) {
+                gaveUp.run();
+            }
+            return delay;
+        }
+
+        @Override
+        public void reset() {
+            delegate.reset();
+        }
+
+        @Override
+        public int getFailures() {
+            return delegate.getFailures();
+        }
     }
 }
