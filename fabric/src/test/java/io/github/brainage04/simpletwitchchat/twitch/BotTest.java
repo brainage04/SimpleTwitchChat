@@ -308,9 +308,39 @@ class BotTest {
     }
 
     @Test
-    void connectionThatGivesUpIsReportedOnce() {
-        AtomicReference<IBackoffStrategy> backoff = new AtomicReference<>();
+    void connectionThatGivesUpWhileConnectingIsReportedOnce() {
         Bot giving =
+                new Bot(
+                        executor,
+                        null,
+                        (token, strategy) -> {
+                            for (int attempt = 0; attempt < Bot.CONNECTION_RETRIES; attempt++) {
+                                assertTrue(strategy.get() >= 0);
+                            }
+                            assertEquals(Bot.CONNECTION_RETRIES, strategy.getFailures());
+                            runQueuedTasks();
+                            assertTrue(sessionEvents.isEmpty());
+                            assertTrue(strategy.get() < 0);
+                            strategy.reset();
+                            assertEquals(0, strategy.getFailures());
+                            for (int attempt = 0; attempt <= Bot.CONNECTION_RETRIES; attempt++) {
+                                strategy.get();
+                            }
+                            return client;
+                        },
+                        token -> Optional.of(true),
+                        (sender, message) -> messages.add(message),
+                        errors::add);
+        giving.start(token(), () -> sessionEvents.add("connection lost"), () -> {});
+        runQueuedTasks();
+        assertEquals(List.of("connection lost"), sessionEvents);
+        giving.close();
+    }
+
+    @Test
+    void establishedSessionKeepsReconnecting() {
+        AtomicReference<IBackoffStrategy> backoff = new AtomicReference<>();
+        Bot reconnecting =
                 new Bot(
                         executor,
                         null,
@@ -321,23 +351,14 @@ class BotTest {
                         token -> Optional.of(true),
                         (sender, message) -> messages.add(message),
                         errors::add);
-        giving.start(token(), () -> sessionEvents.add("connection lost"), () -> {});
+        reconnecting.start(token(), () -> sessionEvents.add("connection lost"), () -> {});
         IBackoffStrategy strategy = backoff.get();
-        for (int attempt = 0; attempt < Bot.CONNECTION_RETRIES; attempt++) {
-            assertTrue(strategy.get() >= 0);
+        for (int attempt = 0; attempt <= 2 * Bot.CONNECTION_RETRIES; attempt++) {
+            assertTrue(strategy.get() >= 0, "attempt " + attempt);
         }
-        assertEquals(Bot.CONNECTION_RETRIES, strategy.getFailures());
         runQueuedTasks();
         assertTrue(sessionEvents.isEmpty());
-        assertTrue(strategy.get() < 0);
-        strategy.reset();
-        assertEquals(0, strategy.getFailures());
-        for (int attempt = 0; attempt <= Bot.CONNECTION_RETRIES; attempt++) {
-            strategy.get();
-        }
-        runQueuedTasks();
-        assertEquals(List.of("connection lost"), sessionEvents);
-        giving.close();
+        reconnecting.close();
     }
 
     @Test

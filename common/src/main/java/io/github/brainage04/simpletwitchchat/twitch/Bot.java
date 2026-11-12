@@ -130,12 +130,6 @@ public class Bot {
                 .build();
     }
 
-    static IBackoffStrategy connectionBackoff(Runnable gaveUp) {
-        return new NotifyingBackoff(
-                ExponentialBackoffStrategy.builder().maxRetries(CONNECTION_RETRIES).build(),
-                gaveUp);
-    }
-
     /**
      * Connects to Twitch chat on the calling thread, which the connection attempts can block for
      * minutes, so callers must not be the client thread. The bot's monitor is not held meanwhile.
@@ -150,12 +144,17 @@ public class Bot {
             this.loginExpired = loginExpired;
         }
         TwitchChat built;
+        ConnectionBackoff backoff = new ConnectionBackoff(this::connectionGaveUp);
         try {
-            built = clientFactory.apply(credential, connectionBackoff(this::connectionGaveUp));
+            built = clientFactory.apply(credential, backoff);
         } catch (RuntimeException exception) {
             finishBuild();
             throw exception;
         }
+        // TwitchChat connects in its constructor (TwitchChat.java:237) and retries on this thread
+        // until it connects or gives up (WebsocketConnection.connect sleeps and calls reconnect
+        // inside its lock), so every later attempt reconnects a session that was established.
+        backoff.firstConnectionDone();
         if (!publish(built)) {
             try {
                 built.close();
@@ -392,13 +391,25 @@ public class Bot {
                 });
     }
 
-    private record NotifyingBackoff(IBackoffStrategy delegate, Runnable gaveUp)
-            implements IBackoffStrategy {
+    private static final class ConnectionBackoff implements IBackoffStrategy {
+        private final IBackoffStrategy delegate = ExponentialBackoffStrategy.builder().build();
+        private final Runnable gaveUp;
+        private volatile boolean firstConnectionDone;
+
+        ConnectionBackoff(Runnable gaveUp) {
+            this.gaveUp = gaveUp;
+        }
+
+        void firstConnectionDone() {
+            firstConnectionDone = true;
+        }
+
         @Override
         public long get() {
             long delay = delegate.get();
-            if (delay < 0) {
+            if (!firstConnectionDone && delegate.getFailures() > CONNECTION_RETRIES) {
                 gaveUp.run();
+                return -1;
             }
             return delay;
         }
