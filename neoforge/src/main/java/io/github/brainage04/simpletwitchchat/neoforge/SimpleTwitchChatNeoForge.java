@@ -52,7 +52,7 @@ public final class SimpleTwitchChatNeoForge {
     }
 
     private void onPlayerLogin(ClientPlayerNetworkEvent.LoggingIn event) {
-        InstalledChatbot.sendAuthorizationPrompt();
+        InstalledChatbot.onJoin();
     }
 
     private void onClientStopping(ClientStoppingEvent event) {

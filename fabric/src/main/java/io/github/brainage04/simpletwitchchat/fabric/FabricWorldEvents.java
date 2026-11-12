@@ -8,6 +8,6 @@ public final class FabricWorldEvents {
 
     public static void initialize() {
         ClientPlayConnectionEvents.JOIN.register(
-                (handler, sender, client) -> InstalledChatbot.sendAuthorizationPrompt());
+                (handler, sender, client) -> InstalledChatbot.onJoin());
     }
 }

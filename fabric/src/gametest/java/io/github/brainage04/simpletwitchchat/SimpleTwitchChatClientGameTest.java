@@ -26,9 +26,14 @@ public final class SimpleTwitchChatClientGameTest implements FabricClientGameTes
                 context,
                 serverProperties,
                 "SimpleTwitchChat command recording GameTest",
+                // Stands in for a login error while the player is still in the menus.
+                server ->
+                        context.runOnClient(
+                                client -> InstalledChatbot.sendChatMessage("before-join")),
                 server -> {
                     try {
                         ClientGameTestServers.assertClientWorldAndPlayerAvailable(context);
+                        ClientGameTestCommands.awaitChat(context, NOT_AUTHORISED);
                         context.runOnClient(
                                 client -> SimpleTwitchChatState.twitchChatToggled = false);
                         context.waitTicks(20);

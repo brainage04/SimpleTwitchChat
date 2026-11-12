@@ -14,6 +14,8 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 
 public class InstalledChatbot {
+    // Used on the client thread only.
+    private static final PendingFeedback<LocalPlayer> FEEDBACK = new PendingFeedback<>();
     private static final ChatbotSession SESSION =
             new ChatbotSession(
                     Bot::new,
@@ -67,7 +69,18 @@ public class InstalledChatbot {
         SESSION.initialize();
     }
 
-    public static void sendAuthorizationPrompt() {
+    public static void onJoin() {
+        Minecraft client = Minecraft.getInstance();
+        client.execute(
+                () -> {
+                    if (client.player != null) {
+                        FEEDBACK.flush(client.player);
+                    }
+                });
+        sendAuthorizationPrompt();
+    }
+
+    private static void sendAuthorizationPrompt() {
         if (SESSION.getActivationUri() == null) {
             return;
         }
@@ -89,11 +102,10 @@ public class InstalledChatbot {
     private static void sendFeedback(String message, MessageType type) {
         Minecraft client = Minecraft.getInstance();
         client.execute(
-                () -> {
-                    if (client.player != null) {
-                        FeedbackUtils.sendMessage(client.player, message, type);
-                    }
-                });
+                () ->
+                        FEEDBACK.send(
+                                client.player,
+                                player -> FeedbackUtils.sendMessage(player, message, type)));
     }
 
     public static boolean sendChatMessage(String message) {
