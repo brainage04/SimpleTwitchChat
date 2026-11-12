@@ -190,4 +190,27 @@ class ChatbotSessionTest {
         assertEquals(1, jobs.size());
         assertTrue(events.getLast().contains("Could not close Twitch chat"));
     }
+
+    @Test
+    void sendingBeforeAuthorizationReportsTheMissingLogin() {
+        assertFalse(session.sendChatMessage("hello"));
+        assertEquals(
+                List.of("Twitch chat is not authorised. Use /regenerateauthurl to try again."),
+                events);
+    }
+
+    @Test
+    void authorizationThatCannotStartIsReportedClosedAndRetryable() {
+        doThrow(new IllegalStateException("executor stopped"))
+                .when(first)
+                .executeAuthorization(any());
+        session.initialize();
+        verify(first).close();
+        assertEquals(
+                List.of(
+                        "Could not start Twitch authorisation. Use /regenerateauthurl to try again."),
+                events);
+        session.initialize();
+        assertEquals(1, jobs.size());
+    }
 }
