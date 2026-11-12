@@ -14,7 +14,8 @@ configurations {
 
 
 dependencies {
-	twitchLibraries "com.github.twitch4j:twitch4j:${rootProject.twitch4j_version}"
+	twitchLibraries "com.github.twitch4j:twitch4j-chat:${rootProject.twitch4j_version}"
+	twitchLibraries "com.github.twitch4j:twitch4j-auth:${rootProject.twitch4j_version}"
 	implementation files(configurations.twitchLibraries)
 	configurations.twitchLibraries.resolvedConfiguration.resolvedArtifacts.each { artifact ->
 		include("${artifact.moduleVersion.id.group}:${artifact.name}:${artifact.moduleVersion.id.version}") {

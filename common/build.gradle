@@ -10,5 +10,6 @@ configurations {
 
 dependencies {
 	compileOnly files(configurations.twitchLibraries)
-	twitchLibraries "com.github.twitch4j:twitch4j:${rootProject.twitch4j_version}"
+	twitchLibraries "com.github.twitch4j:twitch4j-chat:${rootProject.twitch4j_version}"
+	twitchLibraries "com.github.twitch4j:twitch4j-auth:${rootProject.twitch4j_version}"
 }

@@ -1,9 +1,13 @@
 package io.github.brainage04.simpletwitchchat;
 
+import com.github.twitch4j.chat.TwitchChat;
+import com.github.twitch4j.chat.TwitchChatBuilder;
+import com.github.twitch4j.common.util.ExponentialBackoffStrategy;
 import io.github.brainage04.minecraftmodconventions.ClientGameTestCommands;
 import io.github.brainage04.minecraftmodconventions.ClientGameTestServers;
 import io.github.brainage04.simpletwitchchat.twitch.InstalledChatbot;
 import java.util.Properties;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 
@@ -14,6 +18,7 @@ public final class SimpleTwitchChatClientGameTest implements FabricClientGameTes
 
     @Override
     public void runTest(ClientGameTestContext context) {
+        assertBundledChatLibrariesLoad();
         InstalledChatbot.close();
         Properties serverProperties = ClientGameTestServers.flatServerProperties();
 
@@ -43,6 +48,25 @@ public final class SimpleTwitchChatClientGameTest implements FabricClientGameTes
                                 });
                     }
                 });
+    }
+
+    // The mod builds a chat client only after a Twitch login. This builds an anonymous one
+    // against a closed local port without retries, which loads the chat, websocket and
+    // rate-limit classes from the bundled twitch4j libraries.
+    private static void assertBundledChatLibrariesLoad() {
+        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
+        try {
+            TwitchChat chat =
+                    TwitchChatBuilder.builder()
+                            .withBaseUrl("ws://127.0.0.1:1")
+                            .withScheduledThreadPoolExecutor(executor)
+                            .withConnectionBackoffStrategy(
+                                    ExponentialBackoffStrategy.builder().maxRetries(0).build())
+                            .build();
+            chat.close();
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     private static void toggleDefaultChat(
