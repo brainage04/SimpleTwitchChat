@@ -8,7 +8,6 @@ import io.github.brainage04.simpletwitchchat.twitch.InstalledChatbot;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.Commands;
 import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
@@ -17,7 +16,7 @@ import net.neoforged.neoforge.common.NeoForge;
 
 @Mod(value = SimpleTwitchChat.MOD_ID, dist = Dist.CLIENT)
 public final class SimpleTwitchChatNeoForge {
-    public SimpleTwitchChatNeoForge(IEventBus modEventBus) {
+    public SimpleTwitchChatNeoForge() {
         SimpleTwitchChat.initialize();
         NeoForge.EVENT_BUS.addListener(this::registerCommands);
         NeoForge.EVENT_BUS.addListener(this::onPlayerLogin);
