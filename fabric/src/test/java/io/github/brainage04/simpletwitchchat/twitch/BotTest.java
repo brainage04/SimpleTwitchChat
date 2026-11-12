@@ -312,13 +312,18 @@ class BotTest {
                         (sender, message) -> messages.add(message),
                         errors::add);
         giving.start(token(), () -> sessionEvents.add("connection lost"), () -> {});
+        IBackoffStrategy strategy = backoff.get();
         for (int attempt = 0; attempt < Bot.CONNECTION_RETRIES; attempt++) {
-            assertTrue(backoff.get().get() >= 0);
+            assertTrue(strategy.get() >= 0);
         }
-        assertTrue(backoff.get().get() < 0);
-        backoff.get().reset();
+        assertEquals(Bot.CONNECTION_RETRIES, strategy.getFailures());
+        runQueuedTasks();
+        assertTrue(sessionEvents.isEmpty());
+        assertTrue(strategy.get() < 0);
+        strategy.reset();
+        assertEquals(0, strategy.getFailures());
         for (int attempt = 0; attempt <= Bot.CONNECTION_RETRIES; attempt++) {
-            backoff.get().get();
+            strategy.get();
         }
         runQueuedTasks();
         assertEquals(List.of("connection lost"), sessionEvents);
@@ -326,13 +331,84 @@ class BotTest {
     }
 
     @Test
+    void buildFailureAfterCloseStopsTheExecutor() {
+        AtomicReference<Bot> building = new AtomicReference<>();
+        Bot failing =
+                new Bot(
+                        executor,
+                        null,
+                        (token, backoff) -> {
+                            building.get().close();
+                            throw new IllegalStateException("offline");
+                        },
+                        token -> Optional.of(true),
+                        (sender, message) -> messages.add(message),
+                        errors::add);
+        building.set(failing);
+        assertThrows(IllegalStateException.class, () -> failing.start(token(), () -> {}, () -> {}));
+        assertTrue(executor.isShutdown());
+    }
+
+    @Test
+    void buildFailureWithoutCloseLeavesClosingToTheSession() {
+        Bot failing =
+                new Bot(
+                        executor,
+                        null,
+                        (token, backoff) -> {
+                            throw new IllegalStateException("offline");
+                        },
+                        token -> Optional.of(true),
+                        (sender, message) -> messages.add(message),
+                        errors::add);
+        assertThrows(IllegalStateException.class, () -> failing.start(token(), () -> {}, () -> {}));
+        assertFalse(executor.isShutdown());
+        failing.close();
+        assertTrue(executor.isShutdown());
+    }
+
+    @Test
     void connectionThreadsDoNotKeepTheGameRunning() throws Exception {
         ScheduledThreadPoolExecutor botExecutor = Bot.newExecutor();
         try {
             assertTrue(botExecutor.submit(() -> Thread.currentThread().isDaemon()).get());
+            assertTrue(botExecutor.getRemoveOnCancelPolicy());
         } finally {
             botExecutor.shutdownNow();
         }
+    }
+
+    @Test
+    void deviceFlowResultIsPassedOn() {
+        DeviceFlowController controller = mock(DeviceFlowController.class);
+        DeviceAuthorization request = mock(DeviceAuthorization.class);
+        when(request.getCompleteUri()).thenReturn("https://id.twitch.tv/activate?code=test");
+        AtomicReference<Consumer<DeviceTokenResponse>> response = new AtomicReference<>();
+        when(controller.startOAuth2DeviceAuthorizationGrantType(any(), any(), any()))
+                .thenAnswer(
+                        invocation -> {
+                            response.set(invocation.getArgument(2));
+                            return request;
+                        });
+        Bot controlled =
+                new Bot(
+                        executor,
+                        controller,
+                        (token, backoff) -> client,
+                        token -> Optional.of(true),
+                        (sender, message) -> messages.add(message),
+                        errors::add);
+        OAuth2Credential token = token();
+        controlled.authorize(credential -> messages.add(credential.getUserName()), errors::add);
+        DeviceTokenResponse approved = mock(DeviceTokenResponse.class);
+        when(approved.getCredential()).thenReturn(token);
+        response.get().accept(approved);
+        response.get().accept(mock(DeviceTokenResponse.class));
+        assertEquals(List.of("streamer"), messages);
+        assertEquals(
+                List.of("Twitch authorisation failed. Use /regenerateauthurl to try again."),
+                errors);
+        controlled.close();
     }
 
     @Test
