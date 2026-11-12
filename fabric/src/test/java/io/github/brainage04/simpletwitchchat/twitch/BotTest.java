@@ -255,6 +255,9 @@ class BotTest {
         runQueuedTasks();
         assertTrue(sessionEvents.isEmpty());
         assertTrue(bot.sendChatMessage("hello"));
+        loginValid.set(Optional.of(false));
+        bot.checkLogin();
+        assertEquals(List.of("login expired"), sessionEvents);
     }
 
     @Test

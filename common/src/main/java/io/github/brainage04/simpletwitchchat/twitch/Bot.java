@@ -43,7 +43,7 @@ public class Bot {
     // https://dev.twitch.tv/docs/authentication/validate-tokens/
     static final Duration LOGIN_CHECK_PERIOD = Duration.ofHours(1);
 
-    private final TwitchIdentityProvider identityProvider;
+    private final TwitchLogin identityProvider;
     private final ScheduledThreadPoolExecutor executor;
     private final DeviceFlowController controller;
     private final CredentialManager credentialManager;
@@ -74,7 +74,7 @@ public class Bot {
         this.executor = executor;
         this.messages = messages;
         this.errors = errors;
-        identityProvider = new TwitchIdentityProvider(CLIENT_ID, null, null);
+        identityProvider = new TwitchLogin(CLIENT_ID, TwitchIdentityProvider.OFFICIAL_BASE_URL);
         this.controller = controller != null ? controller : new DeviceFlowController(executor, 0);
         credentialManager =
                 CredentialManagerBuilder.builder()
@@ -245,19 +245,14 @@ public class Bot {
             }
             checked = credential;
         }
-        Optional<Boolean> valid;
-        try {
-            valid = loginCheck.apply(checked);
-        } catch (RuntimeException exception) {
-            valid = Optional.empty();
-        }
+        Optional<Boolean> valid = loginCheck.apply(checked);
         Runnable expired;
         synchronized (this) {
             if (closed || credential != checked) {
                 return;
             }
-            // Empty means Twitch could not be asked (TwitchIdentityProvider.isCredentialValid), so
-            // the next check asks again.
+            // Empty means Twitch could not be asked (TwitchLogin.isCredentialValid), so the next
+            // check asks again.
             if (valid.orElse(true)) {
                 loginConfirmed = true;
                 return;
