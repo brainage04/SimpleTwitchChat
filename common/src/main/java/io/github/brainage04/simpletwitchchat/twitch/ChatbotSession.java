@@ -151,13 +151,9 @@ final class ChatbotSession {
         closeBot(previous);
     }
 
-    private void closeBot(Bot previous) {
+    private static void closeBot(Bot previous) {
         if (previous != null) {
-            try {
-                previous.close();
-            } catch (RuntimeException exception) {
-                errors.accept("Could not close Twitch chat cleanly.");
-            }
+            previous.close();
         }
     }
 }

@@ -37,6 +37,7 @@ public class Bot {
     static final String NOT_CONNECTED =
             "Twitch chat is not connected yet. Please try again shortly.";
     static final String NOT_SENT = "Could not send your Twitch message. Please try again shortly.";
+    static final String CLOSE_FAILED = "Could not close Twitch chat cleanly.";
     static final int CONNECTION_RETRIES = 8;
     // Twitch requires apps to validate a user token at start and hourly after that:
     // https://dev.twitch.tv/docs/authentication/validate-tokens/
@@ -325,21 +326,39 @@ public class Bot {
             // and stops the executor (start).
             stopExecutor = !building;
         }
+        // TwitchChat.close waits for the connection's lock, which a reconnect holds through each
+        // connect attempt and backoff sleep (WebsocketConnection.connect, reconnect, disconnect),
+        // for minutes during an outage. Quitting and /regenerateauthurl run this on the client
+        // thread, so the transport closes on a thread of its own. `closed` already stops this bot
+        // from showing or sending messages.
+        Thread.ofPlatform()
+                .name("t4j-bot-close")
+                .daemon(true)
+                .start(() -> closeResources(previous, stopExecutor));
+    }
+
+    private void closeResources(TwitchChat previous, boolean stopExecutor) {
+        if (previous != null) {
+            reportCloseFailure(previous::close);
+        }
+        reportCloseFailure(
+                () -> {
+                    controller.close();
+                    SimpleTwitchChat.LOGGER.info("Twitch device authorisation controller closed.");
+                });
+        if (stopExecutor) {
+            executor.shutdownNow();
+            SimpleTwitchChat.LOGGER.info(
+                    "Twitch bot executor shutdown requested: {}.", executor.isShutdown());
+        }
+    }
+
+    private void reportCloseFailure(Runnable step) {
         try {
-            if (previous != null) {
-                previous.close();
-            }
-        } finally {
-            try {
-                controller.close();
-                SimpleTwitchChat.LOGGER.info("Twitch device authorisation controller closed.");
-            } finally {
-                if (stopExecutor) {
-                    executor.shutdownNow();
-                    SimpleTwitchChat.LOGGER.info(
-                            "Twitch bot executor shutdown requested: {}.", executor.isShutdown());
-                }
-            }
+            step.run();
+        } catch (RuntimeException exception) {
+            SimpleTwitchChat.LOGGER.warn(CLOSE_FAILED, exception);
+            errors.accept(CLOSE_FAILED);
         }
     }
 
