@@ -66,8 +66,7 @@ class BotTest {
     private final Map<Class<?>, Consumer<Object>> listeners = new HashMap<>();
     private final AtomicReference<Optional<Boolean>> loginValid =
             new AtomicReference<>(Optional.of(true));
-    private final AtomicReference<Optional<OAuth2Credential>> renewalAnswer =
-            new AtomicReference<>(Optional.empty());
+    private final AtomicReference<Renewal> renewalAnswer = new AtomicReference<>(Renewal.REFUSED);
     private final List<OAuth2Credential> renewals = new CopyOnWriteArrayList<>();
     private final Bot bot =
             new Bot(
@@ -99,7 +98,7 @@ class BotTest {
         return token;
     }
 
-    private Optional<OAuth2Credential> renew(OAuth2Credential credential) {
+    private Renewal renew(OAuth2Credential credential) {
         renewals.add(credential);
         return renewalAnswer.get();
     }
@@ -285,7 +284,7 @@ class BotTest {
         OAuth2Credential login = liveLogin("expired", "refresh-one");
         startWith(login);
         loginValid.set(Optional.of(false));
-        renewalAnswer.set(Optional.of(liveLogin("fresh", "refresh-two")));
+        renewalAnswer.set(Renewal.renewed(liveLogin("fresh", "refresh-two")));
         bot.checkLogin();
         assertEquals(List.of(login), renewals);
         assertTrue(sessionEvents.isEmpty());
@@ -300,14 +299,65 @@ class BotTest {
         OAuth2Credential login = liveLogin("expired", "refresh-spent");
         startWith(login);
         loginValid.set(Optional.of(false));
-        renewalAnswer.set(Optional.empty());
+        renewalAnswer.set(Renewal.REFUSED);
         bot.checkLogin();
         bot.checkLogin();
         assertEquals(List.of("login expired"), sessionEvents);
         assertEquals("expired", login.getAccessToken());
         assertFalse(bot.sendChatMessage("lost"));
         verify(client, never()).sendMessage("streamer", "lost");
+        verify(client, never()).reconnect();
         assertEquals(List.of(Bot.NOT_CONNECTED), errors);
+    }
+
+    @Test
+    void renewedLoginReconnectsTheAnonymousSession() {
+        OAuth2Credential login = liveLogin("expired", "refresh-one");
+        startWith(login);
+        loginValid.set(Optional.of(false));
+        renewalAnswer.set(Renewal.renewed(liveLogin("fresh", "refresh-two")));
+        // twitch4j has just reconnected, which is when it drops to anonymous if the token expired.
+        fire(
+                ChatConnectionStateEvent.class,
+                new ChatConnectionStateEvent(
+                        WebsocketConnectionState.CONNECTING,
+                        WebsocketConnectionState.CONNECTED,
+                        client));
+        runQueuedTasks();
+        assertEquals("fresh", login.getAccessToken());
+        verify(client).reconnect();
+        assertTrue(bot.sendChatMessage("hello"));
+    }
+
+    @Test
+    void renewalWithoutAConnectionLeavesReconnectingToTheLibrary() {
+        OAuth2Credential login = liveLogin("expired", "refresh-one");
+        startWith(login);
+        when(client.getState()).thenReturn(WebsocketConnectionState.RECONNECTING);
+        loginValid.set(Optional.of(false));
+        renewalAnswer.set(Renewal.renewed(liveLogin("fresh", "refresh-two")));
+        bot.checkLogin();
+        assertEquals("fresh", login.getAccessToken());
+        verify(client, never()).reconnect();
+    }
+
+    @Test
+    void renewalTwitchCannotAnswerKeepsTheLoginForTheNextCheck() {
+        OAuth2Credential login = liveLogin("expired", "refresh-one");
+        startWith(login);
+        loginValid.set(Optional.of(false));
+        renewalAnswer.set(Renewal.UNKNOWN);
+        bot.checkLogin();
+        assertTrue(sessionEvents.isEmpty(), "a 429 or a 5xx must not ask for a new login");
+        verify(client, never()).reconnect();
+        assertFalse(bot.sendChatMessage("lost"));
+        verify(client, never()).sendMessage("streamer", "lost");
+        assertEquals("expired", login.getAccessToken());
+        renewalAnswer.set(Renewal.renewed(liveLogin("fresh", "refresh-two")));
+        bot.checkLogin();
+        assertEquals("fresh", login.getAccessToken());
+        assertTrue(bot.sendChatMessage("hello"));
+        assertTrue(sessionEvents.isEmpty());
     }
 
     @Test
@@ -325,7 +375,7 @@ class BotTest {
                             calls.incrementAndGet();
                             entered.countDown();
                             awaitUninterruptibly(release);
-                            return Optional.of(liveLogin("fresh", "refresh-two"));
+                            return Renewal.renewed(liveLogin("fresh", "refresh-two"));
                         },
                         (sender, message) -> messages.add(sender + ": " + message),
                         errors::add);

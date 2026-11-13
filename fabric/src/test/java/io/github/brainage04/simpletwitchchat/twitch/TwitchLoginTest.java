@@ -110,11 +110,11 @@ class TwitchLoginTest {
 
     @Test
     void renewalReturnsTheNewAccessAndRefreshTokens() {
-        Optional<OAuth2Credential> renewed = login.renew(refreshable);
-        assertTrue(renewed.isPresent());
-        assertEquals("new-access", renewed.get().getAccessToken());
-        assertEquals("new-refresh", renewed.get().getRefreshToken());
-        assertEquals(Integer.valueOf(5011271), renewed.get().getExpiresIn());
+        Renewal renewal = login.renew(refreshable);
+        assertEquals(Renewal.Outcome.RENEWED, renewal.outcome());
+        assertEquals("new-access", renewal.credential().getAccessToken());
+        assertEquals("new-refresh", renewal.credential().getRefreshToken());
+        assertEquals(Integer.valueOf(5011271), renewal.credential().getExpiresIn());
     }
 
     @Test
@@ -130,35 +130,43 @@ class TwitchLoginTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {400, 401, 403, 429, 500})
-    void rejectedRefreshDoesNotRenew(int answer) {
+    @ValueSource(ints = {400, 401})
+    void refusedRefreshTokenNeedsANewLogin(int answer) {
         tokenStatus.set(answer);
         tokenAnswer.set("{\"status\":400,\"message\":\"Invalid refresh token\"}");
-        assertTrue(login.renew(refreshable).isEmpty());
+        assertEquals(Renewal.Outcome.REFUSED, login.renew(refreshable).outcome());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {403, 429, 500, 503})
+    void refreshAnswerThatSaysNothingAboutTheTokenIsUnknown(int answer) {
+        tokenStatus.set(answer);
+        tokenAnswer.set("{\"status\":429,\"message\":\"Too Many Requests\"}");
+        assertEquals(Renewal.Outcome.UNKNOWN, login.renew(refreshable).outcome());
     }
 
     @Test
-    void answerWithoutAnAccessTokenDoesNotRenew() {
-        tokenAnswer.set("{\"status\":400,\"message\":\"Invalid refresh token\"}");
-        assertTrue(login.renew(refreshable).isEmpty());
+    void answerWithoutAnAccessTokenIsUnknown() {
+        tokenAnswer.set("{\"status\":500,\"message\":\"Internal Server Error\"}");
+        assertEquals(Renewal.Outcome.UNKNOWN, login.renew(refreshable).outcome());
         tokenAnswer.set("{\"refresh_token\":\"new-refresh\"}");
-        assertTrue(login.renew(refreshable).isEmpty());
+        assertEquals(Renewal.Outcome.UNKNOWN, login.renew(refreshable).outcome());
     }
 
     @Test
-    void unreachableTokenEndpointDoesNotRenew() throws Exception {
+    void unreachableTokenEndpointIsUnknown() throws Exception {
         int closedPort;
         try (ServerSocket socket = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))) {
             closedPort = socket.getLocalPort();
         }
         TwitchLogin unreachable =
                 new TwitchLogin("client", "http://127.0.0.1:" + closedPort + "/oauth2");
-        assertTrue(unreachable.renew(refreshable).isEmpty());
+        assertEquals(Renewal.Outcome.UNKNOWN, unreachable.renew(refreshable).outcome());
     }
 
     @Test
-    void loginWithoutARefreshTokenIsNotRenewed() {
-        assertTrue(login.renew(credential).isEmpty());
+    void loginWithoutARefreshTokenCannotBeRenewed() {
+        assertEquals(Renewal.Outcome.REFUSED, login.renew(credential).outcome());
         assertTrue(tokenBodies.isEmpty());
     }
 
@@ -167,9 +175,9 @@ class TwitchLoginTest {
         String previousHome = System.getProperty("user.home");
         System.setProperty("user.home", home.toString());
         try {
-            assertTrue(login.renew(refreshable).isPresent());
+            assertEquals(Renewal.Outcome.RENEWED, login.renew(refreshable).outcome());
             tokenStatus.set(401);
-            assertTrue(login.renew(refreshable).isEmpty());
+            assertEquals(Renewal.Outcome.REFUSED, login.renew(refreshable).outcome());
         } finally {
             System.setProperty("user.home", previousHome);
         }

@@ -48,10 +48,11 @@ final class TwitchLogin extends TwitchIdentityProvider {
     // https://dev.twitch.tv/docs/authentication/refresh-tokens/
     // The parameters travel in the body because the token must not appear in a URL that HTTP
     // logging could keep.
-    Optional<OAuth2Credential> renew(OAuth2Credential credential) {
+    Renewal renew(OAuth2Credential credential) {
         String refreshToken = credential.getRefreshToken();
         if (refreshToken == null || refreshToken.isBlank()) {
-            return Optional.empty();
+            // Nothing is left to renew with, so only a new authorisation brings the chat back.
+            return Renewal.REFUSED;
         }
         Request request =
                 new Request.Builder()
@@ -64,14 +65,22 @@ final class TwitchLogin extends TwitchIdentityProvider {
                                         .build())
                         .build();
         try (Response response = httpClient.newCall(request).execute()) {
+            // Twitch answers a spent or invalid refresh token with 400 "Invalid refresh token";
+            // every other code, a 429 or a 5xx included, says nothing about the token, so the next
+            // hourly check asks again: https://dev.twitch.tv/docs/authentication/refresh-tokens/
+            int code = response.code();
+            if (code == HttpURLConnection.HTTP_BAD_REQUEST
+                    || code == HttpURLConnection.HTTP_UNAUTHORIZED) {
+                return Renewal.REFUSED;
+            }
             if (!response.isSuccessful() || response.body() == null) {
-                return Optional.empty();
+                return Renewal.UNKNOWN;
             }
             JsonObject answer = JsonParser.parseString(response.body().string()).getAsJsonObject();
             if (!answer.has("access_token")) {
-                return Optional.empty();
+                return Renewal.UNKNOWN;
             }
-            return Optional.of(
+            return Renewal.renewed(
                     new OAuth2Credential(
                             getProviderName(),
                             answer.get("access_token").getAsString(),
@@ -83,7 +92,7 @@ final class TwitchLogin extends TwitchIdentityProvider {
                             answer.has("expires_in") ? answer.get("expires_in").getAsInt() : null,
                             null));
         } catch (IOException | RuntimeException exception) {
-            return Optional.empty();
+            return Renewal.UNKNOWN;
         }
     }
 }

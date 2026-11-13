@@ -50,7 +50,7 @@ public class Bot {
     private final CredentialManager credentialManager;
     private final BiFunction<OAuth2Credential, IBackoffStrategy, TwitchChat> clientFactory;
     private final Function<OAuth2Credential, Optional<Boolean>> loginCheck;
-    private final Function<OAuth2Credential, Optional<OAuth2Credential>> renewal;
+    private final Function<OAuth2Credential, Renewal> renewal;
     private final BiConsumer<String, String> messages;
     private final Consumer<String> errors;
     private final AtomicBoolean renewing = new AtomicBoolean();
@@ -72,7 +72,7 @@ public class Bot {
             DeviceFlowController controller,
             BiFunction<OAuth2Credential, IBackoffStrategy, TwitchChat> clientFactory,
             Function<OAuth2Credential, Optional<Boolean>> loginCheck,
-            Function<OAuth2Credential, Optional<OAuth2Credential>> renewal,
+            Function<OAuth2Credential, Renewal> renewal,
             BiConsumer<String, String> messages,
             Consumer<String> errors) {
         this.executor = executor;
@@ -275,37 +275,65 @@ public class Bot {
         }
     }
 
-    /** Renews the login once, and reports it expired when that is not possible. */
+    /** Renews the login once: a refusal asks for a new login, an unclear answer waits. */
     private void renewLogin(OAuth2Credential checked) {
-        Optional<OAuth2Credential> renewed;
+        Renewal renewal;
         try {
-            renewed = renewal.apply(checked);
+            renewal = this.renewal.apply(checked);
         } catch (RuntimeException exception) {
-            renewed = Optional.empty();
+            renewal = Renewal.UNKNOWN;
         }
         Runnable expired = null;
-        boolean renewedLogin = false;
+        TwitchChat reconnecting = null;
         synchronized (this) {
             if (closed || credential != checked) {
                 return;
             }
-            if (renewed.isPresent()) {
-                checked.updateCredential(renewed.get());
-                loginConfirmed = true;
-                renewedLogin = true;
-            } else {
-                loginConfirmed = false;
-                expired = loginExpired;
-                loginExpired = null;
+            switch (renewal.outcome()) {
+                case RENEWED -> {
+                    checked.updateCredential(renewal.credential());
+                    loginConfirmed = true;
+                    // twitch4j decides per connection whether to log in or to go anonymous
+                    // (TwitchChat.java:352-372), so a session that fell back while the token was
+                    // expired only authenticates on its next connection.
+                    if (client != null && client.getState() == WebsocketConnectionState.CONNECTED) {
+                        reconnecting = client;
+                    }
+                }
+                case REFUSED -> {
+                    loginConfirmed = false;
+                    expired = loginExpired;
+                    loginExpired = null;
+                }
+                case UNKNOWN -> loginConfirmed = false;
             }
         }
-        if (renewedLogin) {
+        if (reconnecting != null) {
+            SimpleTwitchChat.LOGGER.info("Twitch login renewed, reconnecting the chat with it.");
+            reconnect(reconnecting);
+            return;
+        }
+        if (renewal.outcome() == Renewal.Outcome.RENEWED) {
             SimpleTwitchChat.LOGGER.info("Twitch login renewed.");
+            return;
+        }
+        if (renewal.outcome() == Renewal.Outcome.UNKNOWN) {
+            SimpleTwitchChat.LOGGER.warn(
+                    "The Twitch login could not be renewed, so the next check asks again.");
             return;
         }
         SimpleTwitchChat.LOGGER.warn("The Twitch login could not be renewed.");
         if (expired != null) {
             expired.run();
+        }
+    }
+
+    private void reconnect(TwitchChat chat) {
+        try {
+            chat.reconnect();
+        } catch (RuntimeException exception) {
+            SimpleTwitchChat.LOGGER.warn(
+                    "Reconnecting Twitch chat after a renewal failed.", exception);
         }
     }
 
