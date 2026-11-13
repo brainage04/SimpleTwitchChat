@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -49,8 +50,10 @@ public class Bot {
     private final CredentialManager credentialManager;
     private final BiFunction<OAuth2Credential, IBackoffStrategy, TwitchChat> clientFactory;
     private final Function<OAuth2Credential, Optional<Boolean>> loginCheck;
+    private final Function<OAuth2Credential, Optional<OAuth2Credential>> renewal;
     private final BiConsumer<String, String> messages;
     private final Consumer<String> errors;
+    private final AtomicBoolean renewing = new AtomicBoolean();
     private TwitchChat client;
     private String username;
     private OAuth2Credential credential;
@@ -61,7 +64,7 @@ public class Bot {
     private volatile boolean closed;
 
     public Bot() {
-        this(newExecutor(), null, null, null, Bot::appendTwitchMessage, Bot::appendError);
+        this(newExecutor(), null, null, null, null, Bot::appendTwitchMessage, Bot::appendError);
     }
 
     Bot(
@@ -69,6 +72,7 @@ public class Bot {
             DeviceFlowController controller,
             BiFunction<OAuth2Credential, IBackoffStrategy, TwitchChat> clientFactory,
             Function<OAuth2Credential, Optional<Boolean>> loginCheck,
+            Function<OAuth2Credential, Optional<OAuth2Credential>> renewal,
             BiConsumer<String, String> messages,
             Consumer<String> errors) {
         this.executor = executor;
@@ -83,6 +87,7 @@ public class Bot {
         credentialManager.registerIdentityProvider(identityProvider);
         this.clientFactory = clientFactory != null ? clientFactory : this::createClient;
         this.loginCheck = loginCheck != null ? loginCheck : identityProvider::isCredentialValid;
+        this.renewal = renewal != null ? renewal : identityProvider::renew;
     }
 
     // Daemon threads: a connection attempt that is still retrying must not keep the game process
@@ -245,22 +250,60 @@ public class Bot {
             }
             checked = credential;
         }
-        Optional<Boolean> valid = loginCheck.apply(checked);
-        Runnable expired;
+        // Empty means Twitch could not be asked (TwitchLogin.isCredentialValid), so the next check
+        // asks again.
+        if (loginCheck.apply(checked).orElse(true)) {
+            confirmLogin(checked);
+            return;
+        }
+        // Each refresh spends the refresh token and returns a new one, so two threads renewing the
+        // same login would break it:
+        // https://dev.twitch.tv/docs/authentication/refresh-tokens/
+        if (!renewing.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            renewLogin(checked);
+        } finally {
+            renewing.set(false);
+        }
+    }
+
+    private synchronized void confirmLogin(OAuth2Credential checked) {
+        if (!closed && credential == checked) {
+            loginConfirmed = true;
+        }
+    }
+
+    /** Renews the login once, and reports it expired when that is not possible. */
+    private void renewLogin(OAuth2Credential checked) {
+        Optional<OAuth2Credential> renewed;
+        try {
+            renewed = renewal.apply(checked);
+        } catch (RuntimeException exception) {
+            renewed = Optional.empty();
+        }
+        Runnable expired = null;
+        boolean renewedLogin = false;
         synchronized (this) {
             if (closed || credential != checked) {
                 return;
             }
-            // Empty means Twitch could not be asked (TwitchLogin.isCredentialValid), so the next
-            // check asks again.
-            if (valid.orElse(true)) {
+            if (renewed.isPresent()) {
+                checked.updateCredential(renewed.get());
                 loginConfirmed = true;
-                return;
+                renewedLogin = true;
+            } else {
+                loginConfirmed = false;
+                expired = loginExpired;
+                loginExpired = null;
             }
-            loginConfirmed = false;
-            expired = loginExpired;
-            loginExpired = null;
         }
+        if (renewedLogin) {
+            SimpleTwitchChat.LOGGER.info("Twitch login renewed.");
+            return;
+        }
+        SimpleTwitchChat.LOGGER.warn("The Twitch login could not be renewed.");
         if (expired != null) {
             expired.run();
         }
