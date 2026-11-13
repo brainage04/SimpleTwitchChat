@@ -1,7 +1,7 @@
 # Create a new release
 
 1. Update `mod_version` in `gradle.properties`.
-2. Start the NeoForge jar (`neoforge/build/libs`) on a NeoForge client, join a world, run `/tc`, `/tc hello` and `/regenerateauthurl`, and quit. No automated test starts the NeoForge jar.
+2. Start the NeoForge jar (`neoforge/build/libs`) on a NeoForge client, join a world, run `/twitchchat`, `/twc hello` and `/regenerateauthurl`, and quit. No automated test starts the NeoForge jar.
 3. Commit the version change.
 4. Push that commit.
 5. Create a matching annotated git tag in the form `vX.Y.Z` so the tag message becomes the GitHub release notes.
