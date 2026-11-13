@@ -9,7 +9,7 @@ Each time you launch Minecraft, authorise the SimpleTwitchChat bot when prompted
 ## Features
 
 - Your Twitch chat messages appear in your Minecraft chat.
-- Your Minecraft chat messages appear in your Twitch chat when you use `/tc <message>`. `/tc` on its own switches the default between sending in Minecraft chat and sending in Twitch chat.
+- Your Minecraft chat messages appear in your Twitch chat when you use `/twitchchat <message>`. `/twitchchat` on its own switches the default between sending in Minecraft chat and sending in Twitch chat.
 - Messages sent while Twitch chat is disconnected or your Twitch login has expired are rejected. When Twitch refuses a message, its reason appears in your Minecraft chat. When your login expires, a new authorisation link appears in chat.
 
 ## Getting started
@@ -20,8 +20,9 @@ Each time you launch Minecraft, authorise the SimpleTwitchChat bot when prompted
 
 ## Commands
 
-- `/tc` - Switches between sending your chat messages in Minecraft chat versus Twitch chat by default.
-- `/tc <message>` - Sends a message in your Twitch chat.
+- `/twitchchat` - Switches between sending your chat messages in Minecraft chat versus Twitch chat by default.
+- `/twitchchat <message>` - Sends a message in your Twitch chat.
+- `/twc` - Short for `/twitchchat`, with the same message argument.
 - `/regenerateauthurl` - Cancels the current authorisation and connection, then requests a new authorisation link.
 
 ## Configuration
