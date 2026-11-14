@@ -387,6 +387,29 @@ class BotTest {
     }
 
     @Test
+    void renewalTwitchCannotAnswerIsRetriedWithinMinutes() {
+        OAuth2Credential login = liveLogin("expired", "refresh-one");
+        startWith(login);
+        loginValid.set(Optional.of(false));
+        renewalAnswer.set(Renewal.UNKNOWN);
+        bot.checkLogin();
+        bot.checkLogin();
+        List<RunnableScheduledFuture<?>> retries = new ArrayList<>();
+        for (Runnable task : executor.getQueue()) {
+            if (task instanceof RunnableScheduledFuture<?> future && !future.isPeriodic()) {
+                retries.add(future);
+            }
+        }
+        assertEquals(1, retries.size(), "two unclear answers must not stack retries");
+        long delay = retries.getFirst().getDelay(TimeUnit.MINUTES);
+        assertTrue(delay > 3 && delay <= 5, "retry in " + delay + " minutes");
+        renewalAnswer.set(Renewal.renewed(liveLogin("fresh", "refresh-two")));
+        retries.getFirst().run();
+        assertEquals("fresh", login.getAccessToken());
+        assertTrue(bot.sendChatMessage("hello"));
+    }
+
+    @Test
     void onlyOneRenewalRunsAtATime() throws Exception {
         AtomicInteger calls = new AtomicInteger();
         CountDownLatch entered = new CountDownLatch(1);
