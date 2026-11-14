@@ -19,6 +19,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -43,6 +44,7 @@ public class Bot {
     // Twitch requires apps to validate a user token at start and hourly after that:
     // https://dev.twitch.tv/docs/authentication/validate-tokens/
     static final Duration LOGIN_CHECK_PERIOD = Duration.ofHours(1);
+    static final Duration RENEWAL_RETRY_DELAY = Duration.ofMinutes(5);
 
     private final TwitchLogin identityProvider;
     private final ScheduledThreadPoolExecutor executor;
@@ -63,6 +65,7 @@ public class Bot {
     private boolean renewedDuringConnect;
     private boolean building;
     private volatile boolean closed;
+    private ScheduledFuture<?> renewalRetry;
 
     public Bot() {
         this(newExecutor(), null, null, null, null, Bot::appendTwitchMessage, Bot::appendError);
@@ -324,7 +327,16 @@ public class Bot {
                     expired = loginExpired;
                     loginExpired = null;
                 }
-                case UNKNOWN -> loginConfirmed = false;
+                case UNKNOWN -> {
+                    loginConfirmed = false;
+                    if (renewalRetry == null || renewalRetry.isDone()) {
+                        renewalRetry =
+                                executor.schedule(
+                                        this::checkLogin,
+                                        RENEWAL_RETRY_DELAY.toMinutes(),
+                                        TimeUnit.MINUTES);
+                    }
+                }
             }
         }
         if (reconnecting != null) {
@@ -337,7 +349,8 @@ public class Bot {
         }
         if (renewal.outcome() == Renewal.Outcome.UNKNOWN) {
             SimpleTwitchChat.LOGGER.warn(
-                    "The Twitch login could not be renewed, so the next check asks again.");
+                    "The Twitch login could not be renewed, so it is asked again in {} minutes.",
+                    RENEWAL_RETRY_DELAY.toMinutes());
             return;
         }
         SimpleTwitchChat.LOGGER.warn("The Twitch login could not be renewed.");
