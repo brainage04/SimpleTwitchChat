@@ -23,8 +23,10 @@ dependencies {
 		}
 	}
 
-	testImplementation platform('org.junit:junit-bom:6.0.3')
+	// jqwik 1.10.2 is built on JUnit Platform 1.14, so the JUnit modules follow the same release line.
+	testImplementation platform('org.junit:junit-bom:5.14.4')
 	testImplementation 'org.junit.jupiter:junit-jupiter'
+	testImplementation 'net.jqwik:jqwik:1.10.2'
 	testImplementation 'org.mockito:mockito-core:5.24.0'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
@@ -34,11 +36,38 @@ productionGameTests {
 	})
 }
 
+// fabric-loader-junit runs the tests inside the Fabric loader, where jqwik finds no @Property methods
+// (MagicCarpet's CarpetMotionTest ran 6 of its 10 tests there, 14 Nov 2026). The other unit tests keep running
+// inside the loader, so the property tests get a task of their own without it.
+def propertyTests = '**/*PropertyTest*'
+tasks.named('test') {
+	exclude propertyTests
+}
+def propertyTest = tasks.register('propertyTest', Test) {
+	description = 'Runs the jqwik property tests outside the Fabric loader.'
+	group = 'verification'
+	def unitTest = tasks.named('test', Test).get()
+	testClassesDirs = unitTest.testClassesDirs
+	classpath = unitTest.classpath.filter { !it.name.startsWith('fabric-loader-junit') }
+	include propertyTests
+	useJUnitPlatform()
+}
+tasks.named('check') {
+	dependsOn propertyTest
+}
+
 pitest {
 	pitestVersion = '1.30.2'
 	junit5PluginVersion = '1.2.3'
-	targetClasses = ['io.github.brainage04.simpletwitchchat.twitch.ChatbotSession']
-	targetTests = ['io.github.brainage04.simpletwitchchat.twitch.ChatbotSessionTest']
+	targetClasses = [
+		'io.github.brainage04.simpletwitchchat.twitch.ChatbotSession',
+		'io.github.brainage04.simpletwitchchat.twitch.Bot',
+		'io.github.brainage04.simpletwitchchat.twitch.ConnectionBackoff'
+	]
+	targetTests = [
+		'io.github.brainage04.simpletwitchchat.twitch.ChatbotSessionTest',
+		'io.github.brainage04.simpletwitchchat.twitch.*PropertyTest'
+	]
 	additionalMutableCodePaths = project(':common').sourceSets.main.output.classesDirs.files
 	threads = 1
 	timeoutConstInMillis = 5000
@@ -48,7 +77,7 @@ pitest {
 tasks.named('pitest') {
 	dependsOn ':common:classes'
 	// With fabric-loader-junit on the classpath, the tests run but PIT records no coverage (0 of 90 lines),
-	// so every mutant counts as uncovered. ChatbotSessionTest does not need the Fabric loader.
+	// so every mutant counts as uncovered. These tests do not need the Fabric loader.
 	def classpath = files(additionalClasspath.from.toList())
 	additionalClasspath.setFrom(classpath.filter { !it.name.startsWith('fabric-loader-junit') })
 }

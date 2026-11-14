@@ -12,6 +12,8 @@ The maintainer runs Gradle through `nomad-heavy`, a job queue for his own machin
 
 The film shots of the client GameTest recording (opening the chat and the captions) are in `fabric/src/recording`, so `fabric/src/gametest` holds only the test.
 
-`:fabric:pitest` runs mutation tests on `ChatbotSession` against its unit tests. It is not part of `check`; the report is written to `fabric/build/reports/pitest`.
+`:fabric:propertyTest` runs the jqwik properties outside the Fabric loader, where jqwik finds no properties; `check` runs it. `BotLoginPropertyTest` drives a started `Bot` through any order of hourly checks, retries, connection changes, Twitch answers and messages and compares it with a model of the login promises: a valid or unanswered check confirms the login, an invalid one renews it, a renewal reconnects the chat once its connect has finished, a refusal asks for a new login once, an unclear renewal is retried after five minutes with at most one retry waiting, and messages go out only while connected and confirmed. `ConnectionBackoffPropertyTest` checks `ConnectionBackoff` against twitch4j's default backoff and the way its websocket connection uses it.
+
+`:fabric:pitest` runs mutation tests on `ChatbotSession`, `Bot` and `ConnectionBackoff` against `ChatbotSessionTest` and the property tests. It is not part of `check`; the report is written to `fabric/build/reports/pitest`.
 
 Keep `minecraftmodconventions_version` and the reusable-workflow versions in `.github/workflows/` aligned.

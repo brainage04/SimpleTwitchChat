@@ -12,7 +12,6 @@ import com.github.twitch4j.chat.events.ChatConnectionStateEvent;
 import com.github.twitch4j.chat.events.channel.ChannelMessageEvent;
 import com.github.twitch4j.chat.events.channel.ChannelNoticeEvent;
 import com.github.twitch4j.client.websocket.domain.WebsocketConnectionState;
-import com.github.twitch4j.common.util.ExponentialBackoffStrategy;
 import com.github.twitch4j.util.IBackoffStrategy;
 import io.github.brainage04.simpletwitchchat.SimpleTwitchChat;
 import java.net.URI;
@@ -506,39 +505,5 @@ public class Bot {
                         client.player.sendSystemMessage(message);
                     }
                 });
-    }
-
-    private static final class ConnectionBackoff implements IBackoffStrategy {
-        private final IBackoffStrategy delegate = ExponentialBackoffStrategy.builder().build();
-        private final Runnable gaveUp;
-        private volatile boolean firstConnectionDone;
-
-        ConnectionBackoff(Runnable gaveUp) {
-            this.gaveUp = gaveUp;
-        }
-
-        void firstConnectionDone() {
-            firstConnectionDone = true;
-        }
-
-        @Override
-        public long get() {
-            long delay = delegate.get();
-            if (!firstConnectionDone && delegate.getFailures() > CONNECTION_RETRIES) {
-                gaveUp.run();
-                return -1;
-            }
-            return delay;
-        }
-
-        @Override
-        public void reset() {
-            delegate.reset();
-        }
-
-        @Override
-        public int getFailures() {
-            return delegate.getFailures();
-        }
     }
 }
