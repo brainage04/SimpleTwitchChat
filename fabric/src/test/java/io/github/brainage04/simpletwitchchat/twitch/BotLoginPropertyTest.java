@@ -251,7 +251,7 @@ class BotLoginPropertyTest {
                         reconnected.run();
                         oneReturned.countDown();
                     });
-            assertEquals(2, harness.checks, "login checks");
+            assertEquals(3, harness.checks, "login checks, the first at start");
             assertEquals(1, harness.renewals, "renewals");
             assertEquals(1, harness.reconnects, "reconnects");
             assertEquals("fresh1", harness.login.getAccessToken());
