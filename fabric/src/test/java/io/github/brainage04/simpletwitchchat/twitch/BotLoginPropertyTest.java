@@ -1,6 +1,7 @@
 package io.github.brainage04.simpletwitchchat.twitch;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
@@ -23,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -73,6 +75,14 @@ class BotLoginPropertyTest {
     /** The player sends a message. */
     record Send() implements Step {}
 
+    /**
+     * The account's channel joins or leaves. twitch4j 1.26.0 counts a channel as joined from the
+     * moment joinChannel is called (TwitchChat.java:745, 913-914) and drops it only on
+     * leaveChannel, or after a ban or failed joins with removeChannelOnJoinFailure
+     * (TwitchChat.java:495, 518), which TwitchChatBuilder leaves off (TwitchChatBuilder.java:248).
+     */
+    record ChannelJoined(boolean joined) implements Step {}
+
     @Provide
     Arbitrary<List<Step>> steps() {
         Arbitrary<Step> answers =
@@ -93,7 +103,8 @@ class BotLoginPropertyTest {
                         Tuple.of(2, Arbitraries.just(new RetryRuns())),
                         Tuple.of(3, connection),
                         Tuple.of(3, answers),
-                        Tuple.of(3, Arbitraries.just(new Send())))
+                        Tuple.of(3, Arbitraries.just(new Send())),
+                        Tuple.of(1, Arbitraries.of(true, false).map(ChannelJoined::new)))
                 .list()
                 .ofMaxSize(30);
     }
@@ -106,6 +117,7 @@ class BotLoginPropertyTest {
         try {
             harness.start();
             model.connected(harness.answers);
+            model.joined = true;
             harness.compare(model, "start");
             for (Step step : steps) {
                 switch (step) {
@@ -131,6 +143,10 @@ class BotLoginPropertyTest {
                     case TwitchAnswers answers -> harness.answers = answers;
                     case Send ignored ->
                             assertEquals(model.canSend(), harness.send(), "message sent");
+                    case ChannelJoined channel -> {
+                        harness.joined = channel.joined();
+                        model.joined = channel.joined();
+                    }
                 }
                 harness.compare(model, step.toString());
             }
@@ -172,6 +188,87 @@ class BotLoginPropertyTest {
                         new Send()));
     }
 
+    /**
+     * The chat's first connect went anonymous, which twitch4j does once a connect has failed more
+     * than once and finds the login invalid (TwitchChat.java:543-546). An anonymous connect does
+     * not join the account's channel (TwitchChat.java:570-572), so it is joined only when start
+     * calls joinChannel, after it has queued the first check, which may run first.
+     */
+    @Example
+    void aRenewalAndASendBeforeTheChannelIsJoined() {
+        Harness harness =
+                new Harness(new TwitchAnswers(Optional.of(false), Renewal.Outcome.RENEWED));
+        Model model = new Model();
+        harness.beforeJoin =
+                () -> {
+                    harness.executor.runQueued();
+                    model.connected(harness.answers);
+                    harness.compare(model, "the first check");
+                    assertEquals(1, model.reconnects, "the renewal reconnects");
+                    assertFalse(harness.send(), "a message before the join");
+                };
+        try {
+            harness.start();
+            model.joined = true;
+            harness.compare(model, "the join");
+            assertTrue(harness.send(), "a message after the join");
+        } finally {
+            harness.close();
+        }
+    }
+
+    /**
+     * The hourly check and the check a reconnect queues run on the bot's two executor threads
+     * (Bot.newExecutor) and both find the login expired. The one that loses the race for the
+     * renewal returns while the other renews.
+     */
+    @Example
+    void twoChecksThatFindTheLoginExpiredAtOnceRenewItOnce() throws InterruptedException {
+        Harness harness =
+                new Harness(new TwitchAnswers(Optional.of(true), Renewal.Outcome.RENEWED));
+        try {
+            harness.start();
+            Runnable reconnected = harness.reconnectedCheck();
+            harness.answers = new TwitchAnswers(Optional.of(false), Renewal.Outcome.RENEWED);
+            CountDownLatch bothChecked = new CountDownLatch(2);
+            CountDownLatch oneReturned = new CountDownLatch(1);
+            harness.twitchCall =
+                    call -> {
+                        if (call.equals("check")) {
+                            bothChecked.countDown();
+                            await(bothChecked);
+                        } else {
+                            await(oneReturned);
+                        }
+                    };
+            Runnable hourly = harness.executor.periodic.getFirst().task;
+            harness.race(
+                    () -> {
+                        hourly.run();
+                        oneReturned.countDown();
+                    },
+                    () -> {
+                        reconnected.run();
+                        oneReturned.countDown();
+                    });
+            assertEquals(2, harness.checks, "login checks");
+            assertEquals(1, harness.renewals, "renewals");
+            assertEquals(1, harness.reconnects, "reconnects");
+            assertEquals("fresh1", harness.login.getAccessToken());
+            assertTrue(harness.send(), "a message after the renewal");
+        } finally {
+            harness.close();
+        }
+    }
+
+    static void await(CountDownLatch latch) {
+        try {
+            assertTrue(latch.await(10, TimeUnit.SECONDS), "the other thread did not get there");
+        } catch (InterruptedException exception) {
+            throw new AssertionError(exception);
+        }
+    }
+
     @Provide
     Arbitrary<TwitchAnswers> answersAtStart() {
         return Arbitraries.of(Optional.of(true), Optional.of(false), Optional.<Boolean>empty())
@@ -184,6 +281,7 @@ class BotLoginPropertyTest {
     /** What the bot should have done so far. */
     private static final class Model {
         WebsocketConnectionState state = WebsocketConnectionState.CONNECTED;
+        boolean joined;
         boolean confirmed;
         boolean renewalWaitsForConnect;
         boolean retryWaiting;
@@ -232,7 +330,7 @@ class BotLoginPropertyTest {
         }
 
         boolean canSend() {
-            return state == WebsocketConnectionState.CONNECTED && confirmed;
+            return state == WebsocketConnectionState.CONNECTED && joined && confirmed;
         }
     }
 
@@ -247,6 +345,9 @@ class BotLoginPropertyTest {
         IBackoffStrategy backoff;
         TwitchAnswers answers;
         WebsocketConnectionState state = WebsocketConnectionState.CONNECTED;
+        volatile boolean joined;
+        Runnable beforeJoin = () -> {};
+        volatile Consumer<String> twitchCall = call -> {};
         int checks;
         int renewals;
         int reconnects;
@@ -265,22 +366,28 @@ class BotLoginPropertyTest {
                                 return client;
                             },
                             token -> {
-                                checks++;
-                                return answers.valid();
+                                twitchCall.accept("check");
+                                synchronized (this) {
+                                    checks++;
+                                    return answers.valid();
+                                }
                             },
                             token -> {
-                                renewals++;
-                                return switch (answers.renewal()) {
-                                    case RENEWED -> {
-                                        renewedLogins++;
-                                        yield Renewal.renewed(
-                                                login(
-                                                        "fresh" + renewedLogins,
-                                                        "r" + renewedLogins));
-                                    }
-                                    case REFUSED -> Renewal.REFUSED;
-                                    case UNKNOWN -> Renewal.UNKNOWN;
-                                };
+                                twitchCall.accept("renewal");
+                                synchronized (this) {
+                                    renewals++;
+                                    return switch (answers.renewal()) {
+                                        case RENEWED -> {
+                                            renewedLogins++;
+                                            yield Renewal.renewed(
+                                                    login(
+                                                            "fresh" + renewedLogins,
+                                                            "r" + renewedLogins));
+                                        }
+                                        case REFUSED -> Renewal.REFUSED;
+                                        case UNKNOWN -> Renewal.UNKNOWN;
+                                    };
+                                }
                             },
                             (sender, message) -> echoes.add(sender + ": " + message),
                             errors::add);
@@ -295,11 +402,21 @@ class BotLoginPropertyTest {
                             ArgumentMatchers.<Class<Object>>any(),
                             ArgumentMatchers.<Consumer<Object>>any());
             when(client.getState()).thenAnswer(invocation -> state);
-            when(client.isChannelJoined("streamer")).thenReturn(true);
+            when(client.isChannelJoined("streamer")).thenAnswer(invocation -> joined);
+            doAnswer(
+                            invocation -> {
+                                beforeJoin.run();
+                                joined = true;
+                                return null;
+                            })
+                    .when(client)
+                    .joinChannel("streamer");
             when(client.sendMessage(any(), any())).thenReturn(true);
             doAnswer(
                             invocation -> {
-                                reconnects++;
+                                synchronized (this) {
+                                    reconnects++;
+                                }
                                 return null;
                             })
                     .when(client)
@@ -339,12 +456,49 @@ class BotLoginPropertyTest {
         }
 
         void connectionTo(WebsocketConnectionState next) {
+            announce(next);
+            executor.runQueued();
+        }
+
+        private void announce(WebsocketConnectionState next) {
             WebsocketConnectionState previous = state;
             state = next;
             listeners
                     .get(ChatConnectionStateEvent.class)
                     .accept(new ChatConnectionStateEvent(previous, next, client));
-            executor.runQueued();
+        }
+
+        /** twitch4j reconnects; returns the check its CONNECTED event queued, not yet run. */
+        Runnable reconnectedCheck() {
+            announce(WebsocketConnectionState.RECONNECTING);
+            announce(WebsocketConnectionState.CONNECTED);
+            assertEquals(1, executor.queued.size(), "checks queued by the reconnect");
+            return executor.queued.poll();
+        }
+
+        /** Runs both tasks on threads of their own at once and waits for them. */
+        void race(Runnable first, Runnable second) throws InterruptedException {
+            List<Throwable> failures = new ArrayList<>();
+            List<Thread> threads = new ArrayList<>();
+            for (Runnable task : List.of(first, second)) {
+                Thread thread = new Thread(task);
+                thread.setUncaughtExceptionHandler(
+                        (failed, failure) -> {
+                            synchronized (failures) {
+                                failures.add(failure);
+                            }
+                        });
+                threads.add(thread);
+            }
+            threads.forEach(Thread::start);
+            for (Thread thread : threads) {
+                thread.join(Duration.ofSeconds(20));
+                assertFalse(thread.isAlive(), "a racing check is stuck");
+            }
+            if (!failures.isEmpty()) {
+                throw new AssertionError(failures.getFirst());
+            }
+            assertTrue(executor.queued.isEmpty(), "tasks queued by the race");
         }
 
         boolean send() {
