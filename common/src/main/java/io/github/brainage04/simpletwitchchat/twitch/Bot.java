@@ -60,6 +60,7 @@ public class Bot {
     private Runnable connectionLost;
     private Runnable loginExpired;
     private boolean loginConfirmed;
+    private boolean renewedDuringConnect;
     private boolean building;
     private volatile boolean closed;
 
@@ -244,11 +245,26 @@ public class Bot {
 
     void checkLogin() {
         OAuth2Credential checked;
+        TwitchChat reconnecting = null;
         synchronized (this) {
             if (closed || credential == null) {
                 return;
             }
             checked = credential;
+            // A renewal that landed while a connection was being made cannot reconnect during it:
+            // twitch4j sends the rest of that socket's handshake through the connection, which by
+            // then carries the new one (TwitchChat.java:476-486, WebsocketConnection.java:305-311).
+            // Its CONNECTED event lands here after the handshake, so the reconnect happens here.
+            if (renewedDuringConnect
+                    && client != null
+                    && client.getState() == WebsocketConnectionState.CONNECTED) {
+                renewedDuringConnect = false;
+                reconnecting = client;
+            }
+        }
+        if (reconnecting != null) {
+            reconnectWithRenewedLogin(reconnecting);
+            return;
         }
         // Empty means Twitch could not be asked (TwitchLogin.isCredentialValid), so the next check
         // asks again.
@@ -292,11 +308,14 @@ public class Bot {
             switch (renewal.outcome()) {
                 case RENEWED -> {
                     checked.updateCredential(renewal.credential());
-                    loginConfirmed = true;
-                    // twitch4j decides per connection whether to log in or to go anonymous
-                    // (TwitchChat.java:352-372), so a session that fell back while the token was
-                    // expired only authenticates on its next connection.
-                    if (client != null && client.getState() == WebsocketConnectionState.CONNECTED) {
+                    // twitch4j decides per connection whether to log in or to go anonymous, and it
+                    // reads the credential while the socket is still CONNECTING
+                    // (WebsocketConnection.java:54-55), so a renewal that lands during a connect
+                    // waits for that connect to finish before it reconnects the chat.
+                    WebsocketConnectionState state = client == null ? null : client.getState();
+                    renewedDuringConnect = state == WebsocketConnectionState.CONNECTING;
+                    loginConfirmed = !renewedDuringConnect;
+                    if (state == WebsocketConnectionState.CONNECTED) {
                         reconnecting = client;
                     }
                 }
@@ -309,8 +328,7 @@ public class Bot {
             }
         }
         if (reconnecting != null) {
-            SimpleTwitchChat.LOGGER.info("Twitch login renewed, reconnecting the chat with it.");
-            reconnect(reconnecting);
+            reconnectWithRenewedLogin(reconnecting);
             return;
         }
         if (renewal.outcome() == Renewal.Outcome.RENEWED) {
@@ -326,6 +344,11 @@ public class Bot {
         if (expired != null) {
             expired.run();
         }
+    }
+
+    private void reconnectWithRenewedLogin(TwitchChat chat) {
+        SimpleTwitchChat.LOGGER.info("Twitch login renewed, reconnecting the chat with it.");
+        reconnect(chat);
     }
 
     private void reconnect(TwitchChat chat) {
