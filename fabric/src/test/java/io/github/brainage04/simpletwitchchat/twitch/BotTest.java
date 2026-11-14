@@ -330,6 +330,32 @@ class BotTest {
     }
 
     @Test
+    void renewalDuringAConnectReconnectsWhenThatConnectFinishes() {
+        OAuth2Credential login = liveLogin("expired", "refresh-one");
+        startWith(login);
+        // twitch4j reads the credential and picks login or anonymous inside onConnected, while
+        // the state is still CONNECTING (WebsocketConnection.java:54-55).
+        when(client.getState()).thenReturn(WebsocketConnectionState.CONNECTING);
+        loginValid.set(Optional.of(false));
+        renewalAnswer.set(Renewal.renewed(liveLogin("fresh", "refresh-two")));
+        bot.checkLogin();
+        assertEquals("fresh", login.getAccessToken());
+        verify(client, never()).reconnect();
+        // That connect finished and went anonymous, and the fresh token validates, so only the
+        // renewal that waited for the connect can still reconnect the chat.
+        loginValid.set(Optional.of(true));
+        when(client.getState()).thenReturn(WebsocketConnectionState.CONNECTED);
+        fire(
+                ChatConnectionStateEvent.class,
+                new ChatConnectionStateEvent(
+                        WebsocketConnectionState.CONNECTING,
+                        WebsocketConnectionState.CONNECTED,
+                        client));
+        runQueuedTasks();
+        verify(client).reconnect();
+    }
+
+    @Test
     void renewalWithoutAConnectionLeavesReconnectingToTheLibrary() {
         OAuth2Credential login = liveLogin("expired", "refresh-one");
         startWith(login);
