@@ -62,6 +62,10 @@ public class Bot {
     private Runnable connectionLost;
     private Runnable loginExpired;
     private boolean loginConfirmed;
+    // Counts new connections and renewals, so a check that asked Twitch before one of them cannot
+    // confirm the login after it: a renewal updates the credential in place, and a reconnect or a
+    // failed renewal leaves the token as it was.
+    private long loginGeneration;
     private boolean renewedDuringConnect;
     private boolean building;
     private volatile boolean closed;
@@ -240,14 +244,16 @@ public class Bot {
                 return;
             }
             // After failed reconnects twitch4j logs in anonymously when it finds the token
-            // invalid (TwitchChat.java:351-354), so a connection says nothing about the login.
+            // invalid (TwitchChat.java:543-546), so a connection says nothing about the login.
             loginConfirmed = false;
+            loginGeneration++;
             executor.execute(this::checkLogin);
         }
     }
 
     void checkLogin() {
         OAuth2Credential checked;
+        long generation;
         String checkedToken;
         TwitchChat reconnecting = null;
         synchronized (this) {
@@ -255,6 +261,7 @@ public class Bot {
                 return;
             }
             checked = credential;
+            generation = loginGeneration;
             checkedToken = checked.getAccessToken();
             // A renewal that landed while a connection was being made cannot reconnect during it.
             // twitch4j runs that socket's handshake (TwitchChat.onConnected) on the reading or
@@ -282,7 +289,7 @@ public class Bot {
         // Empty means Twitch could not be asked (TwitchLogin.isCredentialValid), so the next check
         // asks again.
         if (loginCheck.apply(checked).orElse(true)) {
-            confirmLogin(checked);
+            confirmLogin(checked, generation);
             return;
         }
         // Each refresh spends the refresh token and returns a new one, so two threads renewing the
@@ -305,8 +312,8 @@ public class Bot {
         }
     }
 
-    private synchronized void confirmLogin(OAuth2Credential checked) {
-        if (!closed && credential == checked) {
+    private synchronized void confirmLogin(OAuth2Credential checked, long generation) {
+        if (!closed && credential == checked && loginGeneration == generation) {
             loginConfirmed = true;
         }
     }
@@ -325,6 +332,7 @@ public class Bot {
             if (closed || credential != checked) {
                 return;
             }
+            loginGeneration++;
             switch (renewal.outcome()) {
                 case RENEWED -> {
                     checked.updateCredential(renewal.credential());
