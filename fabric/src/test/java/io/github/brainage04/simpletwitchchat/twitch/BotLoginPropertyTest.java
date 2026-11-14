@@ -261,6 +261,50 @@ class BotLoginPropertyTest {
         }
     }
 
+    /**
+     * The check a reconnect queues asks Twitch about the login, and the hourly check finds it
+     * expired and renews it before that answer arrives. The answer is about the old login, so it
+     * must not renew the new one: each renewal spends the refresh token and reconnects the chat.
+     */
+    @Example
+    void aCheckAnsweredAfterTheRenewalDoesNotRenewAgain() throws InterruptedException {
+        Harness harness =
+                new Harness(new TwitchAnswers(Optional.of(true), Renewal.Outcome.RENEWED));
+        try {
+            harness.start();
+            Runnable reconnected = harness.reconnectedCheck();
+            harness.answers = new TwitchAnswers(Optional.of(false), Renewal.Outcome.RENEWED);
+            CountDownLatch reconnectedAsked = new CountDownLatch(1);
+            CountDownLatch hourlyDone = new CountDownLatch(1);
+            harness.twitchCall =
+                    call -> {
+                        if (Thread.currentThread().getName().equals("reconnected")) {
+                            reconnectedAsked.countDown();
+                            await(hourlyDone);
+                        } else if (call.equals("renewal")) {
+                            await(reconnectedAsked);
+                        }
+                    };
+            Runnable hourly = harness.executor.periodic.getFirst().task;
+            harness.race(
+                    () -> {
+                        hourly.run();
+                        hourlyDone.countDown();
+                    },
+                    () -> {
+                        Thread.currentThread().setName("reconnected");
+                        reconnected.run();
+                    });
+            assertEquals(3, harness.checks, "login checks, the first at start");
+            assertEquals(1, harness.renewals, "renewals");
+            assertEquals(1, harness.reconnects, "reconnects");
+            assertEquals("fresh1", harness.login.getAccessToken());
+            assertTrue(harness.send(), "a message after the renewal");
+        } finally {
+            harness.close();
+        }
+    }
+
     static void await(CountDownLatch latch) {
         try {
             assertTrue(latch.await(10, TimeUnit.SECONDS), "the other thread did not get there");
