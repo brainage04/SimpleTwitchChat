@@ -329,10 +329,10 @@ public class Bot {
                 }
                 case UNKNOWN -> {
                     loginConfirmed = false;
-                    if (renewalRetry == null || renewalRetry.isDone()) {
+                    if (renewalRetry == null) {
                         renewalRetry =
                                 executor.schedule(
-                                        this::checkLogin,
+                                        this::retryRenewal,
                                         RENEWAL_RETRY_DELAY.toMinutes(),
                                         TimeUnit.MINUTES);
                     }
@@ -357,6 +357,13 @@ public class Bot {
         if (expired != null) {
             expired.run();
         }
+    }
+
+    private void retryRenewal() {
+        synchronized (this) {
+            renewalRetry = null;
+        }
+        checkLogin();
     }
 
     private void reconnectWithRenewedLogin(TwitchChat chat) {
