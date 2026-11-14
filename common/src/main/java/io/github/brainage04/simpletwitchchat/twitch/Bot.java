@@ -251,10 +251,14 @@ public class Bot {
                 return;
             }
             checked = credential;
-            // A renewal that landed while a connection was being made cannot reconnect during it:
-            // twitch4j sends the rest of that socket's handshake through the connection, which by
-            // then carries the new one (TwitchChat.java:476-486, WebsocketConnection.java:305-311).
-            // Its CONNECTED event lands here after the handshake, so the reconnect happens here.
+            // A renewal that landed while a connection was being made cannot reconnect during it.
+            // twitch4j runs that socket's handshake (TwitchChat.onConnected) on the reading or
+            // writing thread of nv-websocket-client, after WebsocketConnection.connect has released
+            // its lock (nv-websocket-client 2.14: WebSocket.connect returns after startThreads, and
+            // those threads call callOnConnectedIfNotYet). A reconnect would therefore not wait for
+            // the handshake, which would carry on through the new connection
+            // (TwitchChat.java:476-486, WebsocketConnection.java:305-311). Its CONNECTED event
+            // lands here after the handshake, so the reconnect happens here.
             if (renewedDuringConnect
                     && client != null
                     && client.getState() == WebsocketConnectionState.CONNECTED) {
