@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -49,19 +50,22 @@ public class Bot {
     private final CredentialManager credentialManager;
     private final BiFunction<OAuth2Credential, IBackoffStrategy, TwitchChat> clientFactory;
     private final Function<OAuth2Credential, Optional<Boolean>> loginCheck;
+    private final Function<OAuth2Credential, Renewal> renewal;
     private final BiConsumer<String, String> messages;
     private final Consumer<String> errors;
+    private final AtomicBoolean renewing = new AtomicBoolean();
     private TwitchChat client;
     private String username;
     private OAuth2Credential credential;
     private Runnable connectionLost;
     private Runnable loginExpired;
     private boolean loginConfirmed;
+    private boolean renewedDuringConnect;
     private boolean building;
     private volatile boolean closed;
 
     public Bot() {
-        this(newExecutor(), null, null, null, Bot::appendTwitchMessage, Bot::appendError);
+        this(newExecutor(), null, null, null, null, Bot::appendTwitchMessage, Bot::appendError);
     }
 
     Bot(
@@ -69,6 +73,7 @@ public class Bot {
             DeviceFlowController controller,
             BiFunction<OAuth2Credential, IBackoffStrategy, TwitchChat> clientFactory,
             Function<OAuth2Credential, Optional<Boolean>> loginCheck,
+            Function<OAuth2Credential, Renewal> renewal,
             BiConsumer<String, String> messages,
             Consumer<String> errors) {
         this.executor = executor;
@@ -83,6 +88,7 @@ public class Bot {
         credentialManager.registerIdentityProvider(identityProvider);
         this.clientFactory = clientFactory != null ? clientFactory : this::createClient;
         this.loginCheck = loginCheck != null ? loginCheck : identityProvider::isCredentialValid;
+        this.renewal = renewal != null ? renewal : identityProvider::renew;
     }
 
     // Daemon threads: a connection attempt that is still retrying must not keep the game process
@@ -239,30 +245,118 @@ public class Bot {
 
     void checkLogin() {
         OAuth2Credential checked;
+        TwitchChat reconnecting = null;
         synchronized (this) {
             if (closed || credential == null) {
                 return;
             }
             checked = credential;
+            // A renewal that landed while a connection was being made cannot reconnect during it:
+            // twitch4j sends the rest of that socket's handshake through the connection, which by
+            // then carries the new one (TwitchChat.java:476-486, WebsocketConnection.java:305-311).
+            // Its CONNECTED event lands here after the handshake, so the reconnect happens here.
+            if (renewedDuringConnect
+                    && client != null
+                    && client.getState() == WebsocketConnectionState.CONNECTED) {
+                renewedDuringConnect = false;
+                reconnecting = client;
+            }
         }
-        Optional<Boolean> valid = loginCheck.apply(checked);
-        Runnable expired;
+        if (reconnecting != null) {
+            reconnectWithRenewedLogin(reconnecting);
+            return;
+        }
+        // Empty means Twitch could not be asked (TwitchLogin.isCredentialValid), so the next check
+        // asks again.
+        if (loginCheck.apply(checked).orElse(true)) {
+            confirmLogin(checked);
+            return;
+        }
+        // Each refresh spends the refresh token and returns a new one, so two threads renewing the
+        // same login would break it:
+        // https://dev.twitch.tv/docs/authentication/refresh-tokens/
+        if (!renewing.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            renewLogin(checked);
+        } finally {
+            renewing.set(false);
+        }
+    }
+
+    private synchronized void confirmLogin(OAuth2Credential checked) {
+        if (!closed && credential == checked) {
+            loginConfirmed = true;
+        }
+    }
+
+    /** Renews the login once: a refusal asks for a new login, an unclear answer waits. */
+    private void renewLogin(OAuth2Credential checked) {
+        Renewal renewal;
+        try {
+            renewal = this.renewal.apply(checked);
+        } catch (RuntimeException exception) {
+            renewal = Renewal.UNKNOWN;
+        }
+        Runnable expired = null;
+        TwitchChat reconnecting = null;
         synchronized (this) {
             if (closed || credential != checked) {
                 return;
             }
-            // Empty means Twitch could not be asked (TwitchLogin.isCredentialValid), so the next
-            // check asks again.
-            if (valid.orElse(true)) {
-                loginConfirmed = true;
-                return;
+            switch (renewal.outcome()) {
+                case RENEWED -> {
+                    checked.updateCredential(renewal.credential());
+                    // twitch4j decides per connection whether to log in or to go anonymous, and it
+                    // reads the credential while the socket is still CONNECTING
+                    // (WebsocketConnection.java:54-55), so a renewal that lands during a connect
+                    // waits for that connect to finish before it reconnects the chat.
+                    WebsocketConnectionState state = client == null ? null : client.getState();
+                    renewedDuringConnect = state == WebsocketConnectionState.CONNECTING;
+                    loginConfirmed = !renewedDuringConnect;
+                    if (state == WebsocketConnectionState.CONNECTED) {
+                        reconnecting = client;
+                    }
+                }
+                case REFUSED -> {
+                    loginConfirmed = false;
+                    expired = loginExpired;
+                    loginExpired = null;
+                }
+                case UNKNOWN -> loginConfirmed = false;
             }
-            loginConfirmed = false;
-            expired = loginExpired;
-            loginExpired = null;
         }
+        if (reconnecting != null) {
+            reconnectWithRenewedLogin(reconnecting);
+            return;
+        }
+        if (renewal.outcome() == Renewal.Outcome.RENEWED) {
+            SimpleTwitchChat.LOGGER.info("Twitch login renewed.");
+            return;
+        }
+        if (renewal.outcome() == Renewal.Outcome.UNKNOWN) {
+            SimpleTwitchChat.LOGGER.warn(
+                    "The Twitch login could not be renewed, so the next check asks again.");
+            return;
+        }
+        SimpleTwitchChat.LOGGER.warn("The Twitch login could not be renewed.");
         if (expired != null) {
             expired.run();
+        }
+    }
+
+    private void reconnectWithRenewedLogin(TwitchChat chat) {
+        SimpleTwitchChat.LOGGER.info("Twitch login renewed, reconnecting the chat with it.");
+        reconnect(chat);
+    }
+
+    private void reconnect(TwitchChat chat) {
+        try {
+            chat.reconnect();
+        } catch (RuntimeException exception) {
+            SimpleTwitchChat.LOGGER.warn(
+                    "Reconnecting Twitch chat after a renewal failed.", exception);
         }
     }
 

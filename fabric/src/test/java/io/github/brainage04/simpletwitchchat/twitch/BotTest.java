@@ -47,6 +47,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.RunnableScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterEach;
@@ -65,12 +66,15 @@ class BotTest {
     private final Map<Class<?>, Consumer<Object>> listeners = new HashMap<>();
     private final AtomicReference<Optional<Boolean>> loginValid =
             new AtomicReference<>(Optional.of(true));
+    private final AtomicReference<Renewal> renewalAnswer = new AtomicReference<>(Renewal.REFUSED);
+    private final List<OAuth2Credential> renewals = new CopyOnWriteArrayList<>();
     private final Bot bot =
             new Bot(
                     executor,
                     null,
                     (token, backoff) -> client,
                     token -> loginValid.get(),
+                    this::renew,
                     (sender, message) -> messages.add(sender + ": " + message),
                     errors::add);
 
@@ -94,15 +98,29 @@ class BotTest {
         return token;
     }
 
+    private Renewal renew(OAuth2Credential credential) {
+        renewals.add(credential);
+        return renewalAnswer.get();
+    }
+
     private void start() {
+        startWith(token());
+    }
+
+    private void startWith(OAuth2Credential credential) {
         bot.start(
-                token(),
+                credential,
                 () -> sessionEvents.add("connection lost"),
                 () -> sessionEvents.add("login expired"));
         when(client.getState()).thenReturn(WebsocketConnectionState.CONNECTED);
         when(client.isChannelJoined("streamer")).thenReturn(true);
         when(client.sendMessage(any(), any())).thenReturn(true);
         runQueuedTasks();
+    }
+
+    private static OAuth2Credential liveLogin(String accessToken, String refreshToken) {
+        return new OAuth2Credential(
+                "twitch", accessToken, refreshToken, null, "streamer", 3600, List.of());
     }
 
     private void runQueuedTasks() {
@@ -254,10 +272,156 @@ class BotTest {
                         client));
         runQueuedTasks();
         assertTrue(sessionEvents.isEmpty());
+        assertTrue(renewals.isEmpty(), "a login Twitch cannot check must not be renewed");
         assertTrue(bot.sendChatMessage("hello"));
         loginValid.set(Optional.of(false));
         bot.checkLogin();
         assertEquals(List.of("login expired"), sessionEvents);
+    }
+
+    @Test
+    void expiredLoginIsRenewedAndSendingContinues() {
+        OAuth2Credential login = liveLogin("expired", "refresh-one");
+        startWith(login);
+        loginValid.set(Optional.of(false));
+        renewalAnswer.set(Renewal.renewed(liveLogin("fresh", "refresh-two")));
+        bot.checkLogin();
+        assertEquals(List.of(login), renewals);
+        assertTrue(sessionEvents.isEmpty());
+        assertEquals("fresh", login.getAccessToken());
+        assertEquals("refresh-two", login.getRefreshToken());
+        assertTrue(bot.sendChatMessage("hello"));
+        assertTrue(errors.isEmpty());
+    }
+
+    @Test
+    void failedRenewalFallsBackToANewLoginLink() {
+        OAuth2Credential login = liveLogin("expired", "refresh-spent");
+        startWith(login);
+        loginValid.set(Optional.of(false));
+        renewalAnswer.set(Renewal.REFUSED);
+        bot.checkLogin();
+        bot.checkLogin();
+        assertEquals(List.of("login expired"), sessionEvents);
+        assertEquals("expired", login.getAccessToken());
+        assertFalse(bot.sendChatMessage("lost"));
+        verify(client, never()).sendMessage("streamer", "lost");
+        verify(client, never()).reconnect();
+        assertEquals(List.of(Bot.NOT_CONNECTED), errors);
+    }
+
+    @Test
+    void renewedLoginReconnectsTheAnonymousSession() {
+        OAuth2Credential login = liveLogin("expired", "refresh-one");
+        startWith(login);
+        loginValid.set(Optional.of(false));
+        renewalAnswer.set(Renewal.renewed(liveLogin("fresh", "refresh-two")));
+        // twitch4j has just reconnected, which is when it drops to anonymous if the token expired.
+        fire(
+                ChatConnectionStateEvent.class,
+                new ChatConnectionStateEvent(
+                        WebsocketConnectionState.CONNECTING,
+                        WebsocketConnectionState.CONNECTED,
+                        client));
+        runQueuedTasks();
+        assertEquals("fresh", login.getAccessToken());
+        verify(client).reconnect();
+        assertTrue(bot.sendChatMessage("hello"));
+    }
+
+    @Test
+    void renewalDuringAConnectReconnectsWhenThatConnectFinishes() {
+        OAuth2Credential login = liveLogin("expired", "refresh-one");
+        startWith(login);
+        // twitch4j reads the credential and picks login or anonymous inside onConnected, while
+        // the state is still CONNECTING (WebsocketConnection.java:54-55).
+        when(client.getState()).thenReturn(WebsocketConnectionState.CONNECTING);
+        loginValid.set(Optional.of(false));
+        renewalAnswer.set(Renewal.renewed(liveLogin("fresh", "refresh-two")));
+        bot.checkLogin();
+        assertEquals("fresh", login.getAccessToken());
+        verify(client, never()).reconnect();
+        // That connect finished and went anonymous, and the fresh token validates, so only the
+        // renewal that waited for the connect can still reconnect the chat.
+        loginValid.set(Optional.of(true));
+        when(client.getState()).thenReturn(WebsocketConnectionState.CONNECTED);
+        fire(
+                ChatConnectionStateEvent.class,
+                new ChatConnectionStateEvent(
+                        WebsocketConnectionState.CONNECTING,
+                        WebsocketConnectionState.CONNECTED,
+                        client));
+        runQueuedTasks();
+        verify(client).reconnect();
+    }
+
+    @Test
+    void renewalWithoutAConnectionLeavesReconnectingToTheLibrary() {
+        OAuth2Credential login = liveLogin("expired", "refresh-one");
+        startWith(login);
+        when(client.getState()).thenReturn(WebsocketConnectionState.RECONNECTING);
+        loginValid.set(Optional.of(false));
+        renewalAnswer.set(Renewal.renewed(liveLogin("fresh", "refresh-two")));
+        bot.checkLogin();
+        assertEquals("fresh", login.getAccessToken());
+        verify(client, never()).reconnect();
+    }
+
+    @Test
+    void renewalTwitchCannotAnswerKeepsTheLoginForTheNextCheck() {
+        OAuth2Credential login = liveLogin("expired", "refresh-one");
+        startWith(login);
+        loginValid.set(Optional.of(false));
+        renewalAnswer.set(Renewal.UNKNOWN);
+        bot.checkLogin();
+        assertTrue(sessionEvents.isEmpty(), "a 429 or a 5xx must not ask for a new login");
+        verify(client, never()).reconnect();
+        assertFalse(bot.sendChatMessage("lost"));
+        verify(client, never()).sendMessage("streamer", "lost");
+        assertEquals("expired", login.getAccessToken());
+        renewalAnswer.set(Renewal.renewed(liveLogin("fresh", "refresh-two")));
+        bot.checkLogin();
+        assertEquals("fresh", login.getAccessToken());
+        assertTrue(bot.sendChatMessage("hello"));
+        assertTrue(sessionEvents.isEmpty());
+    }
+
+    @Test
+    void onlyOneRenewalRunsAtATime() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        Bot renewingBot =
+                new Bot(
+                        executor,
+                        null,
+                        (token, backoff) -> client,
+                        token -> Optional.of(false),
+                        token -> {
+                            calls.incrementAndGet();
+                            entered.countDown();
+                            awaitUninterruptibly(release);
+                            return Renewal.renewed(liveLogin("fresh", "refresh-two"));
+                        },
+                        (sender, message) -> messages.add(sender + ": " + message),
+                        errors::add);
+        renewingBot.start(
+                liveLogin("expired", "refresh-one"),
+                () -> {},
+                () -> sessionEvents.add("login expired"));
+        when(client.getState()).thenReturn(WebsocketConnectionState.CONNECTED);
+        when(client.isChannelJoined("streamer")).thenReturn(true);
+        when(client.sendMessage(any(), any())).thenReturn(true);
+        assertTrue(entered.await(2, TimeUnit.SECONDS), "the start-up check must renew the login");
+        renewingBot.checkLogin();
+        assertEquals(1, calls.get(), "a second check must not spend the refresh token again");
+        release.countDown();
+        runQueuedTasks();
+        assertEquals(1, calls.get());
+        assertTrue(sessionEvents.isEmpty());
+        assertTrue(renewingBot.sendChatMessage("hello"));
+        renewingBot.close();
+        assertTrue(executor.awaitTermination(2, TimeUnit.SECONDS));
     }
 
     @Test
@@ -289,6 +453,7 @@ class BotTest {
                             return client;
                         },
                         token -> Optional.of(true),
+                        this::renew,
                         (sender, message) -> messages.add(message),
                         errors::add);
         Thread starter =
@@ -332,6 +497,7 @@ class BotTest {
                             return client;
                         },
                         token -> Optional.of(true),
+                        this::renew,
                         (sender, message) -> messages.add(message),
                         errors::add);
         giving.start(token(), () -> sessionEvents.add("connection lost"), () -> {});
@@ -352,6 +518,7 @@ class BotTest {
                             return client;
                         },
                         token -> Optional.of(true),
+                        this::renew,
                         (sender, message) -> messages.add(message),
                         errors::add);
         reconnecting.start(token(), () -> sessionEvents.add("connection lost"), () -> {});
@@ -376,6 +543,7 @@ class BotTest {
                             throw new IllegalStateException("offline");
                         },
                         token -> Optional.of(true),
+                        this::renew,
                         (sender, message) -> messages.add(message),
                         errors::add);
         building.set(failing);
@@ -393,6 +561,7 @@ class BotTest {
                             throw new IllegalStateException("offline");
                         },
                         token -> Optional.of(true),
+                        this::renew,
                         (sender, message) -> messages.add(message),
                         errors::add);
         assertThrows(IllegalStateException.class, () -> failing.start(token(), () -> {}, () -> {}));
@@ -430,6 +599,7 @@ class BotTest {
                         controller,
                         (token, backoff) -> client,
                         token -> Optional.of(true),
+                        this::renew,
                         (sender, message) -> messages.add(message),
                         errors::add);
         OAuth2Credential token = token();
@@ -475,6 +645,7 @@ class BotTest {
                         controller,
                         (token, backoff) -> client,
                         token -> Optional.of(true),
+                        this::renew,
                         (sender, message) -> messages.add(message),
                         errors::add);
         assertEquals(
@@ -547,6 +718,7 @@ class BotTest {
                             return chat;
                         },
                         token -> Optional.of(true),
+                        this::renew,
                         (sender, message) -> messages.add(message),
                         errors::add);
         real.start(token(), () -> sessionEvents.add("connection lost"), () -> {});
@@ -626,6 +798,7 @@ class BotTest {
                         null,
                         (token, backoff) -> nextClient,
                         token -> Optional.of(true),
+                        this::renew,
                         (sender, message) -> messages.add(sender + ": " + message),
                         errors::add);
         next.start(token(), () -> {}, () -> {});
@@ -654,6 +827,7 @@ class BotTest {
                             return client;
                         },
                         credential -> Optional.of(true),
+                        this::renew,
                         (sender, message) -> messages.add(message),
                         errors::add);
         controlled.start(token, () -> {}, () -> {});
@@ -670,6 +844,7 @@ class BotTest {
                         controller,
                         (token, backoff) -> client,
                         token -> Optional.of(true),
+                        this::renew,
                         (sender, message) -> messages.add(message),
                         errors::add);
         doThrow(new IllegalStateException("controller close failed")).when(controller).close();

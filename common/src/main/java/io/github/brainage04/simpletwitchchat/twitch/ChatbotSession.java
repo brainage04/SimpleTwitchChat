@@ -10,7 +10,7 @@ final class ChatbotSession {
     static final String CONNECTION_FAILED =
             "Could not connect to Twitch chat. Use /regenerateauthurl to try again.";
     static final String LOGIN_EXPIRED =
-            "Your Twitch login has expired. Open the new link below to log in again.";
+            "Your Twitch login has expired and could not be renewed. Open the new link below to log in again.";
 
     private final Supplier<Bot> bots;
     private final Runnable prompt;
