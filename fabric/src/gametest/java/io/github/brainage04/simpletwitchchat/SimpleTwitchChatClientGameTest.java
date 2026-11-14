@@ -6,6 +6,7 @@ import com.github.twitch4j.common.util.ExponentialBackoffStrategy;
 import io.github.brainage04.minecraftmodconventions.ClientGameTestCommands;
 import io.github.brainage04.minecraftmodconventions.ClientGameTestServers;
 import io.github.brainage04.simpletwitchchat.twitch.InstalledChatbot;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
@@ -38,9 +39,10 @@ public final class SimpleTwitchChatClientGameTest implements FabricClientGameTes
                                 client -> SimpleTwitchChatState.twitchChatToggled = false);
                         context.waitTicks(20);
 
-                        toggleDefaultChat(context, true);
+                        assertCommandNames(context);
+                        toggleDefaultChat(context, true, "twitchchat");
                         SimpleTwitchChatFilm.showDefaultChat(context, true);
-                        toggleDefaultChat(context, false);
+                        toggleDefaultChat(context, false, "twc");
                         SimpleTwitchChatFilm.showDefaultChat(context, false);
 
                         assertUnauthorizedDelivery(context);
@@ -74,14 +76,34 @@ public final class SimpleTwitchChatClientGameTest implements FabricClientGameTes
         }
     }
 
+    private static void assertCommandNames(ClientGameTestContext context) {
+        context.runOnClient(
+                client -> {
+                    var root = client.getConnection().getCommands().getRoot();
+                    for (String name : List.of("twitchchat", "twc")) {
+                        if (root.getChild(name) == null) {
+                            throw new AssertionError(
+                                    "Expected /" + name + " in the client command tree.");
+                        }
+                    }
+                    if (root.getChild("tc") != null) {
+                        throw new AssertionError(
+                                "/tc is still registered, so it still hides a server's own /tc"
+                                        + " command.");
+                    }
+                });
+    }
+
     private static void toggleDefaultChat(
-            ClientGameTestContext context, boolean expectedTwitchDefault) {
-        ClientGameTestCommands.runCommand(context, "tc");
+            ClientGameTestContext context, boolean expectedTwitchDefault, String command) {
+        ClientGameTestCommands.runCommand(context, command);
         context.runOnClient(
                 client -> {
                     if (SimpleTwitchChatState.twitchChatToggled != expectedTwitchDefault) {
                         throw new AssertionError(
-                                "The registered /tc command did not select the expected default chat.");
+                                "The registered /"
+                                        + command
+                                        + " command did not select the expected default chat.");
                     }
                 });
         ClientGameTestCommands.awaitChat(
@@ -93,11 +115,11 @@ public final class SimpleTwitchChatClientGameTest implements FabricClientGameTes
 
     private static void assertUnauthorizedDelivery(ClientGameTestContext context) {
         ClientGameTestCommands.clearChat(context);
-        ClientGameTestCommands.runCommand(context, "tc explicit-test-message");
+        ClientGameTestCommands.runCommand(context, "twc explicit-test-message");
         ClientGameTestCommands.awaitChat(context, NOT_AUTHORISED);
 
         ClientGameTestCommands.clearChat(context);
-        ClientGameTestCommands.runCommand(context, "tc");
+        ClientGameTestCommands.runCommand(context, "twitchchat");
         context.runOnClient(client -> client.player.connection.sendChat(LEAK_PROBE));
         context.waitTicks(10);
         ClientGameTestCommands.awaitChat(context, NOT_AUTHORISED);

@@ -16,14 +16,14 @@ public final class SimpleTwitchChatFilm {
                     context,
                     "chat.twitch-default",
                     "Twitch is the default chat",
-                    "The /tc command confirms that new chat messages use Twitch by default.",
+                    "The /twitchchat command confirms that new chat messages use Twitch by default.",
                     SHOT_TICKS);
         } else {
             ClientGameTestRecorder.showStepAndHold(
                     context,
                     "chat.minecraft-default",
                     "Minecraft is the default chat",
-                    "The same /tc command confirms that new chat messages return to Minecraft by default.",
+                    "The /twc alias confirms that new chat messages return to Minecraft by default.",
                     SHOT_TICKS);
         }
     }
