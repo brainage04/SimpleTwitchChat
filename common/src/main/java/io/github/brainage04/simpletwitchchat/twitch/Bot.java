@@ -17,6 +17,7 @@ import io.github.brainage04.simpletwitchchat.SimpleTwitchChat;
 import java.net.URI;
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -247,12 +248,14 @@ public class Bot {
 
     void checkLogin() {
         OAuth2Credential checked;
+        String checkedToken;
         TwitchChat reconnecting = null;
         synchronized (this) {
             if (closed || credential == null) {
                 return;
             }
             checked = credential;
+            checkedToken = checked.getAccessToken();
             // A renewal that landed while a connection was being made cannot reconnect during it.
             // twitch4j runs that socket's handshake (TwitchChat.onConnected) on the reading or
             // writing thread of nv-websocket-client, after WebsocketConnection.connect has released
@@ -289,6 +292,13 @@ public class Bot {
             return;
         }
         try {
+            synchronized (this) {
+                // A renewal updates the credential in place, so a check that asked Twitch before
+                // another thread's renewal finished would otherwise renew the new login again.
+                if (!Objects.equals(checkedToken, checked.getAccessToken())) {
+                    return;
+                }
+            }
             renewLogin(checked);
         } finally {
             renewing.set(false);
