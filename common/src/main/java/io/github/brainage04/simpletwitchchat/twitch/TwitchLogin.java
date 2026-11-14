@@ -66,8 +66,9 @@ final class TwitchLogin extends TwitchIdentityProvider {
                         .build();
         try (Response response = httpClient.newCall(request).execute()) {
             // Twitch answers a spent or invalid refresh token with 400 "Invalid refresh token";
-            // every other code, a 429 or a 5xx included, says nothing about the token, so the next
-            // hourly check asks again: https://dev.twitch.tv/docs/authentication/refresh-tokens/
+            // every other code, a 429 or a 5xx included, says nothing about the token, so the bot
+            // asks again after Bot.RENEWAL_RETRY_DELAY:
+            // https://dev.twitch.tv/docs/authentication/refresh-tokens/
             int code = response.code();
             if (code == HttpURLConnection.HTTP_BAD_REQUEST
                     || code == HttpURLConnection.HTTP_UNAUTHORIZED) {
