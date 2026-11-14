@@ -5,12 +5,11 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 
 public final class RegenerateAuthUrlCommand {
-	private RegenerateAuthUrlCommand() {
-	}
+    private RegenerateAuthUrlCommand() {}
 
-	public static int execute(LocalPlayer player) {
-		player.sendSystemMessage(Component.literal("Restarting installed chatbot..."));
-		InstalledChatbot.regenerate();
-		return 1;
-	}
+    public static int execute(LocalPlayer player) {
+        player.sendSystemMessage(Component.literal("Restarting installed chatbot..."));
+        InstalledChatbot.regenerate();
+        return 1;
+    }
 }

@@ -1,12 +1,17 @@
 package io.github.brainage04.simpletwitchchat.twitch;
 
 import com.github.philippheuer.credentialmanager.domain.OAuth2Credential;
-
 import java.net.URI;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 final class ChatbotSession {
+    static final String CONNECTION_FAILED =
+            "Could not connect to Twitch chat. Use /regenerateauthurl to try again.";
+    static final String LOGIN_EXPIRED =
+            "Your Twitch login has expired. Open the new link below to log in again.";
+
     private final Supplier<Bot> bots;
     private final Runnable prompt;
     private final Runnable authorized;
@@ -15,8 +20,8 @@ final class ChatbotSession {
     private URI activationUri;
     private boolean completed;
 
-    ChatbotSession(Supplier<Bot> bots, Runnable prompt, Runnable authorized,
-            Consumer<String> errors) {
+    ChatbotSession(
+            Supplier<Bot> bots, Runnable prompt, Runnable authorized, Consumer<String> errors) {
         this.bots = bots;
         this.prompt = prompt;
         this.authorized = authorized;
@@ -28,18 +33,22 @@ final class ChatbotSession {
     }
 
     void initialize() {
-        replace(true);
+        replace(current -> current == null, null);
     }
 
     void regenerate() {
-        replace(false);
+        replace(current -> true, null);
     }
 
-    private void replace(boolean onlyIfAbsent) {
+    private void expire(Bot requestBot) {
+        replace(current -> current == requestBot, LOGIN_EXPIRED);
+    }
+
+    private void replace(Predicate<Bot> replaces, String notice) {
         Bot previous;
         Bot requestBot;
         synchronized (this) {
-            if (onlyIfAbsent && bot != null) {
+            if (!replaces.test(bot)) {
                 return;
             }
             previous = bot;
@@ -49,10 +58,15 @@ final class ChatbotSession {
             completed = false;
         }
         closeBot(previous);
+        if (notice != null) {
+            errors.accept(notice);
+        }
         try {
             requestBot.executeAuthorization(() -> requestAuthorization(requestBot));
         } catch (RuntimeException exception) {
-            fail(requestBot, "Could not start Twitch authorisation. Use /regenerateauthurl to try again.");
+            fail(
+                    requestBot,
+                    "Could not start Twitch authorisation. Use /regenerateauthurl to try again.");
         }
     }
 
@@ -63,8 +77,10 @@ final class ChatbotSession {
             }
         }
         try {
-            URI uri = requestBot.authorize(token -> complete(requestBot, token),
-                    message -> fail(requestBot, message));
+            URI uri =
+                    requestBot.authorize(
+                            token -> complete(requestBot, token),
+                            message -> fail(requestBot, message));
             synchronized (this) {
                 // A response can finish before the initial HTTP request returns.
                 if (bot != requestBot || completed) {
@@ -87,14 +103,15 @@ final class ChatbotSession {
             activationUri = null;
         }
         try {
-            requestBot.start(token);
+            requestBot.start(
+                    token, () -> fail(requestBot, CONNECTION_FAILED), () -> expire(requestBot));
             synchronized (this) {
                 if (bot == requestBot) {
                     authorized.run();
                 }
             }
         } catch (RuntimeException exception) {
-            fail(requestBot, "Could not connect to Twitch chat. Use /regenerateauthurl to try again.");
+            fail(requestBot, CONNECTION_FAILED);
         }
     }
 
@@ -134,13 +151,9 @@ final class ChatbotSession {
         closeBot(previous);
     }
 
-    private void closeBot(Bot previous) {
+    private static void closeBot(Bot previous) {
         if (previous != null) {
-            try {
-                previous.close();
-            } catch (RuntimeException exception) {
-                errors.accept("Could not close Twitch chat cleanly.");
-            }
+            previous.close();
         }
     }
 }

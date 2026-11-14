@@ -1,7 +1,0 @@
-{
-  "required": true,
-  "package": "io.github.brainage04.simpletwitchchat.gametest.mixin",
-  "compatibilityLevel": "JAVA_25",
-  "client": ["ChatComponentAccessor"],
-  "injectors": {"defaultRequire": 1}
-}
