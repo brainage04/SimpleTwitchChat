@@ -260,6 +260,10 @@ public class Bot {
                     && client.getState() == WebsocketConnectionState.CONNECTED) {
                 renewedDuringConnect = false;
                 reconnecting = client;
+            } else if (renewedDuringConnect) {
+                // That connect may have gone anonymous, so a valid token says nothing about it
+                // until the reconnect above has replaced it.
+                return;
             }
         }
         if (reconnecting != null) {
