@@ -2,6 +2,7 @@ package io.github.brainage04.simpletwitchchat.twitch;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -384,6 +385,43 @@ class BotTest {
         assertEquals("fresh", login.getAccessToken());
         assertTrue(bot.sendChatMessage("hello"));
         assertTrue(sessionEvents.isEmpty());
+    }
+
+    @Test
+    void renewalTwitchCannotAnswerIsRetriedEveryFewMinutes() {
+        OAuth2Credential login = liveLogin("expired", "refresh-one");
+        startWith(login);
+        loginValid.set(Optional.of(false));
+        renewalAnswer.set(Renewal.UNKNOWN);
+        bot.checkLogin();
+        bot.checkLogin();
+        List<RunnableScheduledFuture<?>> retries = pendingRetries();
+        assertEquals(1, retries.size(), "two unclear answers must not stack retries");
+        long delay = retries.getFirst().getDelay(TimeUnit.MINUTES);
+        assertTrue(delay > 3 && delay <= 5, "retry in " + delay + " minutes");
+        // Twitch still cannot answer when the retry runs, so the retry schedules the next one.
+        retries.getFirst().run();
+        assertEquals(3, renewals.size());
+        List<RunnableScheduledFuture<?>> next = pendingRetries();
+        assertEquals(1, next.size(), "an unclear retry must schedule the next one");
+        assertNotSame(retries.getFirst(), next.getFirst());
+        renewalAnswer.set(Renewal.renewed(liveLogin("fresh", "refresh-two")));
+        next.getFirst().run();
+        assertEquals("fresh", login.getAccessToken());
+        assertTrue(pendingRetries().isEmpty(), "a renewed login needs no retry");
+        assertTrue(bot.sendChatMessage("hello"));
+    }
+
+    private List<RunnableScheduledFuture<?>> pendingRetries() {
+        List<RunnableScheduledFuture<?>> retries = new ArrayList<>();
+        for (Runnable task : executor.getQueue()) {
+            if (task instanceof RunnableScheduledFuture<?> future
+                    && !future.isPeriodic()
+                    && !future.isDone()) {
+                retries.add(future);
+            }
+        }
+        return retries;
     }
 
     @Test

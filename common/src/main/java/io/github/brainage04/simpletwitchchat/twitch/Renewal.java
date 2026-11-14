@@ -11,7 +11,7 @@ record Renewal(Outcome outcome, OAuth2Credential credential) {
         RENEWED,
         /** Twitch refused the refresh token, or there is none left: only a new login helps. */
         REFUSED,
-        /** Twitch could not be asked or did not say: the next hourly check tries again. */
+        /** Twitch could not be asked or did not say: retried after Bot.RENEWAL_RETRY_DELAY. */
         UNKNOWN
     }
 
