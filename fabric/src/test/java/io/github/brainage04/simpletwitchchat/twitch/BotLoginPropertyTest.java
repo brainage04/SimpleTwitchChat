@@ -1,10 +1,12 @@
 package io.github.brainage04.simpletwitchchat.twitch;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.github.philippheuer.credentialmanager.authcontroller.DeviceFlowController;
@@ -12,6 +14,7 @@ import com.github.philippheuer.credentialmanager.domain.OAuth2Credential;
 import com.github.twitch4j.chat.TwitchChat;
 import com.github.twitch4j.chat.events.ChatConnectionStateEvent;
 import com.github.twitch4j.client.websocket.domain.WebsocketConnectionState;
+import com.github.twitch4j.util.IBackoffStrategy;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -27,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
+import net.jqwik.api.Example;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.Provide;
@@ -135,6 +139,39 @@ class BotLoginPropertyTest {
         }
     }
 
+    @Example
+    void aRenewalDuringAConnectReconnectsOnceThatConnectFinishes() {
+        theBotFollowsTheLoginModel(
+                new TwitchAnswers(Optional.of(true), Renewal.Outcome.RENEWED),
+                List.of(
+                        new ConnectionTo(WebsocketConnectionState.CONNECTING),
+                        new TwitchAnswers(Optional.of(false), Renewal.Outcome.RENEWED),
+                        new HourlyCheck(),
+                        new TwitchAnswers(Optional.of(true), Renewal.Outcome.RENEWED),
+                        new HourlyCheck(),
+                        new Send(),
+                        new ConnectionTo(WebsocketConnectionState.CONNECTED),
+                        new Send(),
+                        new ConnectionTo(WebsocketConnectionState.CONNECTED),
+                        new Send()));
+    }
+
+    @Example
+    void aRenewalDuringAConnectThatDropsWaitsForTheNextConnection() {
+        theBotFollowsTheLoginModel(
+                new TwitchAnswers(Optional.of(false), Renewal.Outcome.UNKNOWN),
+                List.of(
+                        new ConnectionTo(WebsocketConnectionState.CONNECTING),
+                        new TwitchAnswers(Optional.of(false), Renewal.Outcome.RENEWED),
+                        new RetryRuns(),
+                        new ConnectionTo(WebsocketConnectionState.LOST),
+                        new HourlyCheck(),
+                        new ConnectionTo(WebsocketConnectionState.CONNECTED),
+                        new Send(),
+                        new HourlyCheck(),
+                        new Send()));
+    }
+
     @Provide
     Arbitrary<TwitchAnswers> answersAtStart() {
         return Arbitraries.of(Optional.of(true), Optional.of(false), Optional.<Boolean>empty())
@@ -154,6 +191,7 @@ class BotLoginPropertyTest {
         int renewals;
         int reconnects;
         int newLoginRequests;
+        int renewed;
 
         /** A CONNECTED event: the bot forgets its confirmation and checks again. */
         void connected(TwitchAnswers answers) {
@@ -177,6 +215,7 @@ class BotLoginPropertyTest {
             renewals++;
             switch (answers.renewal()) {
                 case RENEWED -> {
+                    renewed++;
                     renewalWaitsForConnect = state == WebsocketConnectionState.CONNECTING;
                     confirmed = !renewalWaitsForConnect;
                     if (state == WebsocketConnectionState.CONNECTED) reconnects++;
@@ -203,6 +242,9 @@ class BotLoginPropertyTest {
         final TwitchChat client = mock(TwitchChat.class, RETURNS_DEEP_STUBS);
         final Map<Class<?>, Consumer<Object>> listeners = new HashMap<>();
         final List<String> errors = new ArrayList<>();
+        final List<String> echoes = new ArrayList<>();
+        final OAuth2Credential login = login("first", "r0");
+        IBackoffStrategy backoff;
         TwitchAnswers answers;
         WebsocketConnectionState state = WebsocketConnectionState.CONNECTED;
         int checks;
@@ -218,7 +260,10 @@ class BotLoginPropertyTest {
                     new Bot(
                             executor,
                             mock(DeviceFlowController.class),
-                            (token, backoff) -> client,
+                            (token, strategy) -> {
+                                backoff = strategy;
+                                return client;
+                            },
                             token -> {
                                 checks++;
                                 return answers.valid();
@@ -237,7 +282,7 @@ class BotLoginPropertyTest {
                                     case UNKNOWN -> Renewal.UNKNOWN;
                                 };
                             },
-                            (sender, message) -> {},
+                            (sender, message) -> echoes.add(sender + ": " + message),
                             errors::add);
             var events = client.getEventManager();
             doAnswer(
@@ -262,8 +307,14 @@ class BotLoginPropertyTest {
         }
 
         void start() {
-            bot.start(login("first", "r0"), () -> {}, () -> newLoginRequests++);
+            bot.start(login, () -> {}, () -> newLoginRequests++);
             executor.runQueued();
+            verify(client).joinChannel("streamer");
+            // Once connected the chat must keep reconnecting through any outage.
+            for (int attempt = 0; attempt <= 2 * Bot.CONNECTION_RETRIES; attempt++) {
+                assertTrue(backoff.get() >= 0, "reconnect " + attempt);
+            }
+            backoff.reset();
         }
 
         void hourlyCheck() {
@@ -297,7 +348,17 @@ class BotLoginPropertyTest {
         }
 
         boolean send() {
-            return bot.sendChatMessage("hello");
+            int echoed = echoes.size();
+            int failed = errors.size();
+            boolean sent = bot.sendChatMessage("hello");
+            if (sent) {
+                assertEquals(List.of("streamer: hello"), echoes.subList(echoed, echoes.size()));
+                assertEquals(failed, errors.size());
+            } else {
+                assertEquals(echoed, echoes.size());
+                assertEquals(List.of(Bot.NOT_CONNECTED), errors.subList(failed, errors.size()));
+            }
+            return sent;
         }
 
         void compare(Model model, String after) {
@@ -305,6 +366,10 @@ class BotLoginPropertyTest {
             assertEquals(model.renewals, renewals, "renewals after " + after);
             assertEquals(model.reconnects, reconnects, "reconnects after " + after);
             assertEquals(model.newLoginRequests, newLoginRequests, "new logins after " + after);
+            assertEquals(
+                    model.renewed == 0 ? "first" : "fresh" + model.renewed,
+                    login.getAccessToken(),
+                    "access token after " + after);
             assertEquals(
                     model.retryWaiting ? 1 : 0,
                     executor.waitingRetries().size(),

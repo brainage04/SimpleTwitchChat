@@ -101,9 +101,17 @@ class ConnectionBackoffPropertyTest {
         AtomicInteger gaveUp = new AtomicInteger();
         ConnectionBackoff backoff = new ConnectionBackoff(gaveUp::incrementAndGet);
         backoff.firstConnectionDone();
+        long waited = 0;
         for (int attempt = 0; attempt < tries; attempt++) {
-            assertTrue(backoff.get() >= 0, "try " + attempt);
+            long delay = backoff.get();
+            assertTrue(delay >= 0, "try " + attempt);
+            waited += delay;
         }
         assertEquals(0, gaveUp.get());
+        if (tries >= 4) {
+            // After the immediate first try each delay is at least a jittered second, so a few
+            // tries all coming back as 0 ms means the delay was dropped.
+            assertTrue(waited > 0, "no delay in " + tries + " tries");
+        }
     }
 }
