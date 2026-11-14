@@ -356,6 +356,32 @@ class BotTest {
     }
 
     @Test
+    void checkBeforeThePendingReconnectDoesNotConfirmTheAnonymousSession() {
+        OAuth2Credential login = liveLogin("expired", "refresh-one");
+        startWith(login);
+        when(client.getState()).thenReturn(WebsocketConnectionState.CONNECTING);
+        loginValid.set(Optional.of(false));
+        renewalAnswer.set(Renewal.renewed(liveLogin("fresh", "refresh-two")));
+        bot.checkLogin();
+        // The hourly check runs before that connect finishes; the fresh token validates, but the
+        // socket may still be the anonymous one the pending reconnect replaces.
+        loginValid.set(Optional.of(true));
+        bot.checkLogin();
+        // twitch4j has set CONNECTED, and its CONNECTED event has not reached the bot yet.
+        when(client.getState()).thenReturn(WebsocketConnectionState.CONNECTED);
+        assertFalse(bot.sendChatMessage("anonymous"));
+        verify(client, never()).sendMessage("streamer", "anonymous");
+        fire(
+                ChatConnectionStateEvent.class,
+                new ChatConnectionStateEvent(
+                        WebsocketConnectionState.CONNECTING,
+                        WebsocketConnectionState.CONNECTED,
+                        client));
+        runQueuedTasks();
+        verify(client).reconnect();
+    }
+
+    @Test
     void renewalWithoutAConnectionLeavesReconnectingToTheLibrary() {
         OAuth2Credential login = liveLogin("expired", "refresh-one");
         startWith(login);
