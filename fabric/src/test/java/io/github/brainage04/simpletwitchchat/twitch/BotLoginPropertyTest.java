@@ -52,6 +52,8 @@ import org.mockito.ArgumentMatchers;
  *       with at most one retry waiting.
  *   <li>Every new connection needs a check before messages go out again, and a message goes out
  *       only while connected, joined and confirmed.
+ *   <li>A check confirms the login only if no new connection and no renewal happened while it
+ *       waited for Twitch.
  * </ul>
  *
  * <p>The connection states and the CONNECTED event follow twitch4j 1.26.0: WebsocketConnection sets
@@ -300,6 +302,113 @@ class BotLoginPropertyTest {
             assertEquals(1, harness.reconnects, "reconnects");
             assertEquals("fresh1", harness.login.getAccessToken());
             assertTrue(harness.send(), "a message after the renewal");
+        } finally {
+            harness.close();
+        }
+    }
+
+    /**
+     * A check asks Twitch about the login while another check renews it during a connect, and that
+     * connect finishes before the answer arrives. The connect may have gone anonymous, so the late
+     * answer must not confirm the login before the reconnect the renewal waits for. The other check
+     * runs inside this check's call to Twitch, which orders them as the bot's two executor threads
+     * could.
+     */
+    @Example
+    void aCheckAnsweredAfterARenewalDuringAConnectDoesNotConfirmIt() {
+        Harness harness =
+                new Harness(new TwitchAnswers(Optional.of(true), Renewal.Outcome.RENEWED));
+        try {
+            harness.start();
+            harness.connectionTo(WebsocketConnectionState.CONNECTING);
+            harness.twitchCall =
+                    call -> {
+                        harness.twitchCall = ignored -> {};
+                        harness.answers =
+                                new TwitchAnswers(Optional.of(false), Renewal.Outcome.RENEWED);
+                        harness.bot.checkLogin();
+                        harness.answers =
+                                new TwitchAnswers(Optional.of(true), Renewal.Outcome.RENEWED);
+                        harness.announce(WebsocketConnectionState.CONNECTED);
+                    };
+            harness.executor.periodic.getFirst().task.run();
+            assertEquals("fresh1", harness.login.getAccessToken());
+            assertFalse(harness.send(), "a message before the reconnect");
+            harness.executor.runQueued();
+            assertEquals(1, harness.reconnects, "reconnects");
+            harness.connectionTo(WebsocketConnectionState.CONNECTED);
+            assertTrue(harness.send(), "a message after the reconnect");
+        } finally {
+            harness.close();
+        }
+    }
+
+    /**
+     * twitch4j reconnects while a check waits for Twitch's answer, and the login expires meanwhile.
+     * That reconnect may have gone anonymous (TwitchChat.java:543-546), so only the check its
+     * CONNECTED event queues may confirm the login for it.
+     */
+    @Example
+    void aCheckThatStartedBeforeAReconnectDoesNotConfirmIt() {
+        Harness harness =
+                new Harness(new TwitchAnswers(Optional.of(true), Renewal.Outcome.RENEWED));
+        try {
+            harness.start();
+            List<Runnable> reconnected = new ArrayList<>();
+            harness.twitchCall =
+                    call -> {
+                        harness.twitchCall = ignored -> {};
+                        reconnected.add(harness.reconnectedCheck());
+                    };
+            harness.executor.periodic.getFirst().task.run();
+            assertFalse(harness.send(), "a message before the reconnect is checked");
+            harness.answers = new TwitchAnswers(Optional.of(false), Renewal.Outcome.RENEWED);
+            reconnected.getFirst().run();
+            assertEquals(1, harness.renewals, "renewals");
+            assertEquals(1, harness.reconnects, "reconnects");
+            harness.answers = new TwitchAnswers(Optional.of(true), Renewal.Outcome.RENEWED);
+            harness.connectionTo(WebsocketConnectionState.CONNECTED);
+            assertTrue(harness.send(), "a message after the renewed login connected");
+        } finally {
+            harness.close();
+        }
+    }
+
+    @Example
+    void aCheckAnsweredAfterARefusedRenewalDoesNotConfirmIt() {
+        aCheckAnsweredAfterAFailedRenewalDoesNotConfirmIt(Renewal.Outcome.REFUSED);
+    }
+
+    @Example
+    void aCheckAnsweredAfterAnUnclearRenewalDoesNotConfirmIt() {
+        aCheckAnsweredAfterAFailedRenewalDoesNotConfirmIt(Renewal.Outcome.UNKNOWN);
+    }
+
+    /**
+     * A check asks Twitch about the login just before it expires, and another check finds it
+     * expired and cannot renew it before that answer arrives. Both answers are about the same
+     * token, so the late one must not confirm the login the renewal gave up on.
+     */
+    private void aCheckAnsweredAfterAFailedRenewalDoesNotConfirmIt(Renewal.Outcome outcome) {
+        Harness harness = new Harness(new TwitchAnswers(Optional.of(true), outcome));
+        try {
+            harness.start();
+            harness.twitchCall =
+                    call -> {
+                        harness.twitchCall = ignored -> {};
+                        harness.answers = new TwitchAnswers(Optional.of(false), outcome);
+                        harness.bot.checkLogin();
+                        harness.answers = new TwitchAnswers(Optional.of(true), outcome);
+                    };
+            harness.executor.periodic.getFirst().task.run();
+            assertEquals(1, harness.renewals, "renewals");
+            assertFalse(harness.send(), "a message after the failed renewal");
+            if (outcome == Renewal.Outcome.REFUSED) {
+                assertEquals(1, harness.newLoginRequests, "new logins");
+            } else {
+                assertTrue(harness.runRetry(), "a retry waited");
+                assertTrue(harness.send(), "a message after the retry confirmed the login");
+            }
         } finally {
             harness.close();
         }
