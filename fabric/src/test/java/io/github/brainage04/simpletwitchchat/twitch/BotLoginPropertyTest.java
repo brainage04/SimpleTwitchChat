@@ -239,12 +239,13 @@ class BotLoginPropertyTest {
                             },
                             (sender, message) -> {},
                             errors::add);
+            var events = client.getEventManager();
             doAnswer(
                             invocation -> {
                                 listeners.put(invocation.getArgument(0), invocation.getArgument(1));
                                 return null;
                             })
-                    .when(client.getEventManager())
+                    .when(events)
                     .onEvent(
                             ArgumentMatchers.<Class<Object>>any(),
                             ArgumentMatchers.<Consumer<Object>>any());
