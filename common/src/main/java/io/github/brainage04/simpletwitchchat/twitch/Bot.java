@@ -70,24 +70,12 @@ public class Bot {
     // failed renewal leaves the token as it was.
     private long loginGeneration;
     // Set while the last check got no answer from Twitch, so the player hears about it once and not
-    // on every reconnect and hourly check until Twitch answers again.
+    // on every reconnect and hourly check until a check confirms the login or a renewal replaces it.
     private boolean loginUnchecked;
     private boolean renewedDuringConnect;
     private boolean building;
     private volatile boolean closed;
     private ScheduledFuture<?> renewalRetry;
-
-    public Bot() {
-        this(
-                newExecutor(),
-                null,
-                null,
-                null,
-                null,
-                Bot::appendTwitchMessage,
-                Bot::appendError,
-                Bot::appendError);
-    }
 
     /** {@code loginWarnings} shows the unanswered-login warning; the bot logs it itself. */
     public Bot(Consumer<String> loginWarnings) {
