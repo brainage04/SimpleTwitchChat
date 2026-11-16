@@ -319,15 +319,21 @@ class BotTest {
         ScheduledThreadPoolExecutor slowExecutor = new ScheduledThreadPoolExecutor(2);
         CountDownLatch asked = new CountDownLatch(1);
         CountDownLatch answer = new CountDownLatch(1);
+        CountDownLatch rechecked = new CountDownLatch(1);
+        AtomicInteger checks = new AtomicInteger();
         Bot slow =
                 new Bot(
                         slowExecutor,
                         null,
                         (token, backoff) -> client,
                         token -> {
-                            asked.countDown();
-                            awaitUninterruptibly(answer);
-                            return Optional.<Boolean>empty();
+                            if (checks.getAndIncrement() == 0) {
+                                asked.countDown();
+                                awaitUninterruptibly(answer);
+                                return Optional.<Boolean>empty();
+                            }
+                            rechecked.countDown();
+                            return Optional.of(true);
                         },
                         this::renew,
                         (sender, message) -> messages.add(sender + ": " + message),
@@ -339,13 +345,13 @@ class BotTest {
         when(client.sendMessage(any(), any())).thenReturn(true);
         assertTrue(awaitLatch(asked), "the start-up check must ask Twitch");
         // A reconnect raises the generation, and its own check confirms the login.
-        loginValid.set(Optional.of(true));
         fire(
                 ChatConnectionStateEvent.class,
                 new ChatConnectionStateEvent(
                         WebsocketConnectionState.CONNECTING,
                         WebsocketConnectionState.CONNECTED,
                         client));
+        assertTrue(awaitLatch(rechecked), "the reconnect's own check must ask Twitch");
         answer.countDown();
         slowExecutor.submit(() -> {}).get(2, TimeUnit.SECONDS);
         assertTrue(errors.isEmpty(), "a check from before the reconnect must not warn: " + errors);
