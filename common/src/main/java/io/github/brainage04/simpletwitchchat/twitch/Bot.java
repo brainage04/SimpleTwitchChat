@@ -394,6 +394,9 @@ public class Bot {
             switch (renewal.outcome()) {
                 case RENEWED -> {
                     checked.updateCredential(renewal.credential());
+                    // The renewed login replaces the one the unanswered check was about, so that
+                    // run is over and a later unanswered check warns again.
+                    loginUnchecked = false;
                     // twitch4j decides per connection whether to log in or to go anonymous, and it
                     // reads the credential while the socket is still CONNECTING
                     // (WebsocketConnection.java:54-55), so a renewal that lands during a connect
