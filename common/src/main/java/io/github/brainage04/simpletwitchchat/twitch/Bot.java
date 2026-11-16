@@ -69,9 +69,9 @@ public class Bot {
     // confirm the login after it: a renewal updates the credential in place, and a reconnect or a
     // failed renewal leaves the token as it was.
     private long loginGeneration;
-    // Set while the last check got no answer from Twitch, so the player hears about it once and not
-    // on every reconnect and hourly check until a check confirms the login or a renewal replaces
-    // it.
+    // Set while an unanswered check has not yet been followed by a confirmation or a replacement,
+    // so the player hears about it once and not on every reconnect and hourly check until a check
+    // confirms the login or a renewal replaces it.
     private boolean loginUnchecked;
     private boolean renewedDuringConnect;
     private boolean building;

@@ -316,7 +316,9 @@ class BotTest {
 
     @Test
     void aCheckThatStartedBeforeAReconnectDoesNotWarn() throws Exception {
-        ScheduledThreadPoolExecutor slowExecutor = new ScheduledThreadPoolExecutor(2);
+        // One thread, so the reconnect's check can only run after the stale one has returned, and
+        // the barrier below runs after both.
+        ScheduledThreadPoolExecutor slowExecutor = new ScheduledThreadPoolExecutor(1);
         CountDownLatch asked = new CountDownLatch(1);
         CountDownLatch answer = new CountDownLatch(1);
         CountDownLatch rechecked = new CountDownLatch(1);
@@ -351,8 +353,8 @@ class BotTest {
                         WebsocketConnectionState.CONNECTING,
                         WebsocketConnectionState.CONNECTED,
                         client));
-        assertTrue(awaitLatch(rechecked), "the reconnect's own check must ask Twitch");
         answer.countDown();
+        assertTrue(awaitLatch(rechecked), "the reconnect's own check must ask Twitch");
         slowExecutor.submit(() -> {}).get(2, TimeUnit.SECONDS);
         assertTrue(errors.isEmpty(), "a check from before the reconnect must not warn: " + errors);
         slow.close();
