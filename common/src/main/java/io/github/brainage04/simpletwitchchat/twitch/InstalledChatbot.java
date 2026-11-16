@@ -18,7 +18,7 @@ public class InstalledChatbot {
     private static final PendingFeedback<LocalPlayer> FEEDBACK = new PendingFeedback<>();
     private static final ChatbotSession SESSION =
             new ChatbotSession(
-                    Bot::new,
+                    () -> new Bot(message -> sendFeedback(message, MessageType.ERROR)),
                     InstalledChatbot::sendAuthorizationPrompt,
                     () ->
                             sendFeedback(

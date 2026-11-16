@@ -77,6 +77,7 @@ class BotTest {
                     token -> loginValid.get(),
                     this::renew,
                     (sender, message) -> messages.add(sender + ": " + message),
+                    errors::add,
                     errors::add);
 
     @BeforeEach
@@ -281,6 +282,92 @@ class BotTest {
     }
 
     @Test
+    void anUnansweredLoginCheckWarnsOnceThatMessagesMayNotSend() {
+        start();
+        loginValid.set(Optional.empty());
+        bot.checkLogin();
+        assertEquals(List.of(Bot.LOGIN_UNCHECKED), errors);
+        // An hourly check and a reconnect that also get no answer do not repeat it.
+        bot.checkLogin();
+        fire(
+                ChatConnectionStateEvent.class,
+                new ChatConnectionStateEvent(
+                        WebsocketConnectionState.CONNECTING,
+                        WebsocketConnectionState.CONNECTED,
+                        client));
+        runQueuedTasks();
+        assertEquals(List.of(Bot.LOGIN_UNCHECKED), errors);
+    }
+
+    @Test
+    void aConfirmedLoginClearsTheUnansweredWarning() {
+        start();
+        loginValid.set(Optional.empty());
+        bot.checkLogin();
+        assertEquals(List.of(Bot.LOGIN_UNCHECKED), errors);
+        loginValid.set(Optional.of(true));
+        bot.checkLogin();
+        assertEquals(List.of(Bot.LOGIN_UNCHECKED), errors, "a confirmed login adds no warning");
+        assertTrue(bot.sendChatMessage("hello"));
+        loginValid.set(Optional.empty());
+        bot.checkLogin();
+        assertEquals(List.of(Bot.LOGIN_UNCHECKED, Bot.LOGIN_UNCHECKED), errors);
+    }
+
+    @Test
+    void aCheckThatStartedBeforeAReconnectDoesNotWarn() throws Exception {
+        ScheduledThreadPoolExecutor slowExecutor = new ScheduledThreadPoolExecutor(2);
+        CountDownLatch asked = new CountDownLatch(1);
+        CountDownLatch answer = new CountDownLatch(1);
+        Bot slow =
+                new Bot(
+                        slowExecutor,
+                        null,
+                        (token, backoff) -> client,
+                        token -> {
+                            asked.countDown();
+                            awaitUninterruptibly(answer);
+                            return Optional.<Boolean>empty();
+                        },
+                        this::renew,
+                        (sender, message) -> messages.add(sender + ": " + message),
+                        errors::add,
+                        errors::add);
+        slow.start(token(), () -> {}, () -> {});
+        when(client.getState()).thenReturn(WebsocketConnectionState.CONNECTED);
+        when(client.isChannelJoined("streamer")).thenReturn(true);
+        when(client.sendMessage(any(), any())).thenReturn(true);
+        assertTrue(awaitLatch(asked), "the start-up check must ask Twitch");
+        // A reconnect raises the generation, and its own check confirms the login.
+        loginValid.set(Optional.of(true));
+        fire(
+                ChatConnectionStateEvent.class,
+                new ChatConnectionStateEvent(
+                        WebsocketConnectionState.CONNECTING,
+                        WebsocketConnectionState.CONNECTED,
+                        client));
+        answer.countDown();
+        slowExecutor.submit(() -> {}).get(2, TimeUnit.SECONDS);
+        assertTrue(errors.isEmpty(), "a check from before the reconnect must not warn: " + errors);
+        slow.close();
+    }
+
+    @Test
+    void aRefusedLoginDoesNotEndTheUnansweredRun() {
+        start();
+        loginValid.set(Optional.empty());
+        bot.checkLogin();
+        assertEquals(List.of(Bot.LOGIN_UNCHECKED), errors);
+        // A refusal is not a confirmation, so the run goes on and the player is not told twice.
+        loginValid.set(Optional.of(false));
+        renewalAnswer.set(Renewal.UNKNOWN);
+        bot.checkLogin();
+        loginValid.set(Optional.empty());
+        bot.checkLogin();
+        assertEquals(List.of(Bot.LOGIN_UNCHECKED), errors);
+    }
+
+    @Test
     void expiredLoginIsRenewedAndSendingContinues() {
         OAuth2Credential login = liveLogin("expired", "refresh-one");
         startWith(login);
@@ -468,6 +555,7 @@ class BotTest {
                             return Renewal.renewed(liveLogin("fresh", "refresh-two"));
                         },
                         (sender, message) -> messages.add(sender + ": " + message),
+                        errors::add,
                         errors::add);
         renewingBot.start(
                 liveLogin("expired", "refresh-one"),
@@ -519,6 +607,7 @@ class BotTest {
                         token -> Optional.of(true),
                         this::renew,
                         (sender, message) -> messages.add(message),
+                        errors::add,
                         errors::add);
         Thread starter =
                 Thread.ofPlatform()
@@ -563,6 +652,7 @@ class BotTest {
                         token -> Optional.of(true),
                         this::renew,
                         (sender, message) -> messages.add(message),
+                        errors::add,
                         errors::add);
         giving.start(token(), () -> sessionEvents.add("connection lost"), () -> {});
         runQueuedTasks();
@@ -584,6 +674,7 @@ class BotTest {
                         token -> Optional.of(true),
                         this::renew,
                         (sender, message) -> messages.add(message),
+                        errors::add,
                         errors::add);
         reconnecting.start(token(), () -> sessionEvents.add("connection lost"), () -> {});
         IBackoffStrategy strategy = backoff.get();
@@ -609,6 +700,7 @@ class BotTest {
                         token -> Optional.of(true),
                         this::renew,
                         (sender, message) -> messages.add(message),
+                        errors::add,
                         errors::add);
         building.set(failing);
         assertThrows(IllegalStateException.class, () -> failing.start(token(), () -> {}, () -> {}));
@@ -627,6 +719,7 @@ class BotTest {
                         token -> Optional.of(true),
                         this::renew,
                         (sender, message) -> messages.add(message),
+                        errors::add,
                         errors::add);
         assertThrows(IllegalStateException.class, () -> failing.start(token(), () -> {}, () -> {}));
         assertFalse(executor.isShutdown());
@@ -665,6 +758,7 @@ class BotTest {
                         token -> Optional.of(true),
                         this::renew,
                         (sender, message) -> messages.add(message),
+                        errors::add,
                         errors::add);
         OAuth2Credential token = token();
         controlled.authorize(credential -> messages.add(credential.getUserName()), errors::add);
@@ -711,6 +805,7 @@ class BotTest {
                         token -> Optional.of(true),
                         this::renew,
                         (sender, message) -> messages.add(message),
+                        errors::add,
                         errors::add);
         assertEquals(
                 URI.create(request.getCompleteUri()),
@@ -784,6 +879,7 @@ class BotTest {
                         token -> Optional.of(true),
                         this::renew,
                         (sender, message) -> messages.add(message),
+                        errors::add,
                         errors::add);
         real.start(token(), () -> sessionEvents.add("connection lost"), () -> {});
         drop.countDown();
@@ -864,6 +960,7 @@ class BotTest {
                         token -> Optional.of(true),
                         this::renew,
                         (sender, message) -> messages.add(sender + ": " + message),
+                        errors::add,
                         errors::add);
         next.start(token(), () -> {}, () -> {});
         nextExecutor.submit(() -> {}).get(2, TimeUnit.SECONDS);
@@ -893,6 +990,7 @@ class BotTest {
                         credential -> Optional.of(true),
                         this::renew,
                         (sender, message) -> messages.add(message),
+                        errors::add,
                         errors::add);
         controlled.start(token, () -> {}, () -> {});
         verify(client).joinChannel("streamer");
@@ -910,11 +1008,21 @@ class BotTest {
                         token -> Optional.of(true),
                         this::renew,
                         (sender, message) -> messages.add(message),
+                        errors::add,
                         errors::add);
         doThrow(new IllegalStateException("controller close failed")).when(controller).close();
         controlled.close();
         assertTrue(executor.awaitTermination(2, TimeUnit.SECONDS));
         assertEquals(List.of(Bot.CLOSE_FAILED), errors);
+    }
+
+    private static boolean awaitLatch(CountDownLatch latch) {
+        try {
+            return latch.await(2, TimeUnit.SECONDS);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     private static void awaitUninterruptibly(CountDownLatch latch) {

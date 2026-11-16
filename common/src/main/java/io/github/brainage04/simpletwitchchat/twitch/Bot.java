@@ -39,6 +39,8 @@ public class Bot {
     static final String NOT_CONNECTED =
             "Twitch chat is not connected yet. Please try again shortly.";
     static final String NOT_SENT = "Could not send your Twitch message. Please try again shortly.";
+    static final String LOGIN_UNCHECKED =
+            "Twitch did not answer the login check, so your messages may not be sent. If they do not appear in Twitch chat, use /regenerateauthurl to log in again.";
     static final String CLOSE_FAILED = "Could not close Twitch chat cleanly.";
     static final int CONNECTION_RETRIES = 8;
     // Twitch requires apps to validate a user token at start and hourly after that:
@@ -55,6 +57,7 @@ public class Bot {
     private final Function<OAuth2Credential, Renewal> renewal;
     private final BiConsumer<String, String> messages;
     private final Consumer<String> errors;
+    private final Consumer<String> loginWarnings;
     private final AtomicBoolean renewing = new AtomicBoolean();
     private TwitchChat client;
     private String username;
@@ -66,13 +69,37 @@ public class Bot {
     // confirm the login after it: a renewal updates the credential in place, and a reconnect or a
     // failed renewal leaves the token as it was.
     private long loginGeneration;
+    // Set while the last check got no answer from Twitch, so the player hears about it once and not
+    // on every reconnect and hourly check until Twitch answers again.
+    private boolean loginUnchecked;
     private boolean renewedDuringConnect;
     private boolean building;
     private volatile boolean closed;
     private ScheduledFuture<?> renewalRetry;
 
     public Bot() {
-        this(newExecutor(), null, null, null, null, Bot::appendTwitchMessage, Bot::appendError);
+        this(
+                newExecutor(),
+                null,
+                null,
+                null,
+                null,
+                Bot::appendTwitchMessage,
+                Bot::appendError,
+                Bot::appendError);
+    }
+
+    /** {@code loginWarnings} shows the unanswered-login warning; the bot logs it itself. */
+    public Bot(Consumer<String> loginWarnings) {
+        this(
+                newExecutor(),
+                null,
+                null,
+                null,
+                null,
+                Bot::appendTwitchMessage,
+                Bot::appendError,
+                loginWarnings);
     }
 
     Bot(
@@ -82,10 +109,12 @@ public class Bot {
             Function<OAuth2Credential, Optional<Boolean>> loginCheck,
             Function<OAuth2Credential, Renewal> renewal,
             BiConsumer<String, String> messages,
-            Consumer<String> errors) {
+            Consumer<String> errors,
+            Consumer<String> loginWarnings) {
         this.executor = executor;
         this.messages = messages;
         this.errors = errors;
+        this.loginWarnings = loginWarnings;
         identityProvider = new TwitchLogin(CLIENT_ID, TwitchIdentityProvider.OFFICIAL_BASE_URL);
         this.controller = controller != null ? controller : new DeviceFlowController(executor, 0);
         credentialManager =
@@ -288,7 +317,13 @@ public class Bot {
         }
         // Empty means Twitch could not be asked (TwitchLogin.isCredentialValid), so the next check
         // asks again.
-        if (loginCheck.apply(checked).orElse(true)) {
+        Optional<Boolean> answer = loginCheck.apply(checked);
+        if (answer.isEmpty()) {
+            warnLoginUnchecked(checked, generation);
+        } else if (answer.get()) {
+            clearLoginUnchecked(checked, generation);
+        }
+        if (answer.orElse(true)) {
             confirmLogin(checked, generation);
             return;
         }
@@ -315,6 +350,29 @@ public class Bot {
     private synchronized void confirmLogin(OAuth2Credential checked, long generation) {
         if (!closed && credential == checked && loginGeneration == generation) {
             loginConfirmed = true;
+        }
+    }
+
+    // A check that started before a reconnect or a renewal says nothing about the login now, so it
+    // neither warns nor clears, the same guard confirmLogin uses.
+    private void warnLoginUnchecked(OAuth2Credential checked, long generation) {
+        synchronized (this) {
+            if (closed
+                    || loginUnchecked
+                    || credential != checked
+                    || loginGeneration != generation) {
+                return;
+            }
+            loginUnchecked = true;
+        }
+        SimpleTwitchChat.LOGGER.warn(
+                "Twitch did not answer the login check, so messages may not be sent.");
+        loginWarnings.accept(LOGIN_UNCHECKED);
+    }
+
+    private synchronized void clearLoginUnchecked(OAuth2Credential checked, long generation) {
+        if (credential == checked && loginGeneration == generation) {
+            loginUnchecked = false;
         }
     }
 

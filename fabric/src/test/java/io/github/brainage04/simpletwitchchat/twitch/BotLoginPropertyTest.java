@@ -543,6 +543,7 @@ class BotLoginPropertyTest {
                                 }
                             },
                             (sender, message) -> echoes.add(sender + ": " + message),
+                            errors::add,
                             errors::add);
             var events = client.getEventManager();
             doAnswer(
