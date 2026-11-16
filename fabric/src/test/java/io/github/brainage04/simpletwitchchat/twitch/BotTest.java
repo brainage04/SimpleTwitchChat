@@ -368,6 +368,22 @@ class BotTest {
     }
 
     @Test
+    void aRenewedLoginStartsTheUnansweredRunAgain() {
+        start();
+        loginValid.set(Optional.empty());
+        bot.checkLogin();
+        assertEquals(List.of(Bot.LOGIN_UNCHECKED), errors);
+        // A refusal renews the login, and a renewed login is a fresh one that sending works with,
+        // so a later check that gets no answer must warn again.
+        loginValid.set(Optional.of(false));
+        renewalAnswer.set(Renewal.renewed(liveLogin("fresh", "refresh-two")));
+        bot.checkLogin();
+        loginValid.set(Optional.empty());
+        bot.checkLogin();
+        assertEquals(List.of(Bot.LOGIN_UNCHECKED, Bot.LOGIN_UNCHECKED), errors);
+    }
+
+    @Test
     void expiredLoginIsRenewedAndSendingContinues() {
         OAuth2Credential login = liveLogin("expired", "refresh-one");
         startWith(login);
