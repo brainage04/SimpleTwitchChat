@@ -8,6 +8,8 @@ Use Java 25. Build the mod and run every test with:
 
 The maintainer runs Gradle through `nomad-heavy`, a job queue for his own machines. Contributors do not need it.
 
+Plugins come from Maven Central at `minecraftmodconventions_version` in `gradle.properties`. A `../MinecraftModConventions` checkout beside the project is used only with `-PuseLocalConventions`; without it a stale checkout cannot replace that version.
+
 `:fabric:test` runs the unit tests. `:fabric:runProductionClientGameTest` runs the client GameTest headlessly through the conventions plugin. NeoForge server GameTests are disabled because this mod is client-only, and no automated test starts the NeoForge jar, so a release includes a manual NeoForge check ([Releases](RELEASE.md)).
 
 The film shots of the client GameTest recording (opening the chat and the captions) are in `fabric/src/recording`, so `fabric/src/gametest` holds only the test.
