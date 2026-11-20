@@ -9,7 +9,8 @@
 	],
 	"contact": {
 		"homepage": "https://github.com/brainage04/SimpleTwitchChat",
-		"sources": "https://github.com/brainage04/SimpleTwitchChat"
+		"sources": "https://github.com/brainage04/SimpleTwitchChat",
+		"issues": "https://github.com/brainage04/SimpleTwitchChat/issues"
 	},
 	"license": "MIT",
 	"icon": "assets/simpletwitchchat/icon.png",
